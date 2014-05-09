@@ -1,5 +1,4 @@
 #!/bin/bash
-vidQuality=18
 DEFAULT_PATH=""
 dictPath="$(PWD)"
 searchExt="avi|flv|iso|mov|mp4|mpeg|mpg|ogg|ogm|ogv|wmv|m2ts|rmvb|rm|3gp|m4a|3g2|mj2|asf|divx|vob|mkv"
@@ -11,7 +10,6 @@ DEFAULT_OUTPUTF="m4v"
 
 function showBar {
 	percDone=$(echo 'scale=2;'$1/$2*100 | bc)
-	#barLen=$(echo ${percDone%'.00'})
 	barLen=`echo "30*${percDone%'.00'}/100" |bc`
 	bar=''
 	fills=''
@@ -20,22 +18,17 @@ function showBar {
 		bar=$bar"#"
 	done
 	
-	#blankSpaces=$(echo $((100-$barLen)))
 	blankSpaces=$(echo $((30-$barLen)))
 	for (( f=0; f<$blankSpaces; f++ ))
 	do
 		fills=$fills"·"
 	done
 
-	#clear
-	#echo -e '['$bar'$'\e[33m'ᗧ$'\e[00m''$fills'] - '$barLen'%'
-	
 	if [ $percDone = "0" ]; then
 		echo -e '0'$(echo 'scale=2;'$1*100/$2 | bc)'%\t['$bar$'\e[33m''ᗧ'$'\e[00m'$fills']'
 	else
 		echo -e $(echo 'scale=2;'$1*100/$2 | bc)'%\t['$bar$'\e[33m''ᗧ'$'\e[00m'$fills']'
 	fi
-	#printf '['$bar'ᗧ'$fills'] - '$barLen'%% - count/total ('$1'/'$2') \r'
 }
 
 function getFrameCount {
@@ -233,13 +226,6 @@ function show_time () {
     echo $rethour"h "$retmin"m "$retsec"s"
 }
 
-#for (( i=0; i<=20; i++ ))
-#do
-# showBar $i 20
-# sleep 1s
-#done
-#showBar 20 40
-#example: HandBrakeCLI --encoder x264 --quality 22.0 --decomb --loose-anamorphic --encopts level=4.1:ref=5:b-adapt=2:direct=auto:deblock=-1,-1:me=umh:subme=8:psy-rd=1.00,0.15:vbv-bufsize=78125:vbv-maxrate=62500:rc-lookahead=50 --audio 1 --aencoder faac --ab 128 --drc 2.5 --subtitle 1 --format m4v --markers --large-file --input /Volumes/Warehouse/Download/processed/Bams.Bad.Ass.Game.Show.S01E03.HDTV.x264-SWOLLED.mp4 --output /Volumes/Warehouse/Download/output/Bams.Bad.Ass.Game.Show.S01E03.HDTV.x264-SWOLLED.m4v
 function showFrame {
 	clear
 	echo -e "#  Convert with Pacman"
@@ -265,7 +251,6 @@ function showFrame {
 		
 	
 	while [ $(ps aux | grep $1 | grep -v grep |wc -l) -gt 0 ]; do                         # Is FFmpeg running?
-	#while [ kill -0 $1 ]; do		
 		if [ -f /tmp/vstats ]; then
     		VSTATS=$(awk '{gsub(/frame=/, "")}/./{line=$1-2} END{print line}' /tmp/vstats |sed 's/[^0-9]*//g')                                  # Parse vstats file.
     		if [ $(printf "%.0f" $VSTATS) -gt "$FR_CNT" ]; then                # Parsed sane or no?
@@ -310,7 +295,7 @@ function checkSanity {
 		fi
 		
 		if [ $leDif -lt 30 ]; then
-			#Differs by 2 max. two Seconds... Okay delete Original.
+			#Differs by max. thirty Seconds... Okay delete Original.
 			rm "$DEFAULT_PATH"
 		fi
 	fi
@@ -323,21 +308,12 @@ function calculateTotalVideos {
 
 function performEncode {
 	mkdir -p "$dictPath/output"
-	#if [ "$(ls -A $dictPath/output)" ];
-	#then
-	#	echo "You are starting a new conversion, please make sure that $dictPath/output is empty. Otherwise it will reencode all videos."
-	#	exit 0
-	#else
 		calculateTotalVideos
 		find -E "$dictPath" -follow -regex '.*\.('$searchExt')' -print0 | while IFS= read -r -d $'\0' line; do
 			if [ '$(basedir "$line")' != "$dictPath/output" ]; then
 				startEncode "$line"
 			fi
 		done
-	#fi
-	#for afile in "$dictPath"/*.{$searchExt}; do 
-	#	echo $afile
-	#done
 }
 
 function startEncode {
