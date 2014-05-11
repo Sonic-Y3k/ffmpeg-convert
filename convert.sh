@@ -238,6 +238,7 @@ function showFrame {
 	echo -e "#  Progress:"
 	echo -e "#    File #:\t\t"$(($dictProgress+1))"/$dictTotal"
 	echo -e "#    Filename:\t\t$(getFilename true)"
+	echo -e "#    Resolution:\t$(echo $2|cut -d':' -f1)x$(echo $2|cut -d':' -f2)"
 	echo -e "#    Overall:\t\t"
 	cframes=$(getFrameCount)
 	FR_CNT=0
@@ -309,7 +310,7 @@ function performEncode {
 	mkdir -p "$dictPath/output"
 		calculateTotalVideos
 		find -E "$dictPath" -follow -regex '.*\.('$searchExt')' -print0 | while IFS= read -r -d $'\0' line; do
-			if [ '$(basedir "$line")' != "$dictPath/output" ]; then
+			if [ $(dirname "$line") != "$dictPath/output" ]; then
 				startEncode "$line"
 			fi
 		done
@@ -389,7 +390,7 @@ function startEncode {
 	
 	nice -n 15 ffmpeg -y -vstats_file /tmp/vstats -i "$1" $(checkFileCodecs) -filter:v crop=$cropFrame "$dictPath/output/$filename.$DEFAULT_OUTPUTF" 2>/dev/null & 
         PID=$! && 
-	showFrame "$PID"
+	showFrame "$PID" "$cropFrame"
 
 	
 	checkSanity
