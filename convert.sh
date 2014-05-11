@@ -6,7 +6,7 @@ crfVal="18"
 
 dictTotal=1
 dictProgress=0
-DEFAULT_OUTPUTF="m4v"
+DEFAULT_OUTPUTF=""
 
 function showBar {
 	percDone=$(echo 'scale=2;'$1/$2*100 | bc)
@@ -318,7 +318,7 @@ function performEncode {
 function checkSize {
 	filesize=$(wc -c "$1"|cut -d' ' -f2|sed 's/[^0-9]*//g')
 	
-	if [ $(printf "%.0f" $filesize) -gt 7516192768 ]
+	if [[ $(printf "%.0f" $filesize) -gt 7516192768 && "$DEFAULT_OUTPUTF" = "" ]]
 	then
 		DEFAULT_OUTPUTF="mkv"
 	else
