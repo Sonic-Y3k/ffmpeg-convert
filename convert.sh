@@ -1,6 +1,6 @@
 #!/bin/bash
 DEFAULT_PATH=""
-dictPath="$(PWD)"
+dictPath="$(pwd)"
 searchExt="avi|flv|iso|mov|mp4|mpeg|mpg|ogg|ogm|ogv|wmv|m2ts|rmvb|rm|3gp|m4a|3g2|mj2|asf|divx|vob|mkv"
 crfVal="18"
 
@@ -166,10 +166,9 @@ function checkFileCodecs {
 			returnFlag="$returnFlag -c:a:$counter ac3 -b:a:$counter 640k -ac:"$(echo "$counter+1"|bc)" $(getAudioChannles $i)"
 			counter=`echo "$counter+1"|bc`
 		elif [ "$DEFAULT_OUTPUTF" = "mkv" ]; then
-			currPos=`echo "$i-1"|bc`
-			returnMap="$returnMap -map 0:$currPos -map 0:$currPos"
-			returnFlag="$returnFlag -c:a:$counter copy"
-			counter=`echo "$counter+1"|bc`
+			i=`echo "$i+1"|bc`
+			currPos=`echo "$counter+1"|bc`
+			returnMap="$returnMap -map 0:$currPos"
 			returnFlag="$returnFlag -c:a:$counter copy"
 			counter=`echo "$counter+1"|bc`
 		fi
@@ -316,8 +315,20 @@ function performEncode {
 		done
 }
 
+function checkSize {
+	filesize=$(wc -c "$1"|cut -d' ' -f2|sed 's/[^0-9]*//g')
+	
+	if [ $(printf "%.0f" $filesize) -gt 7516192768 ]
+	then
+		DEFAULT_OUTPUTF="mkv"
+	else
+		DEFAULT_OUTPUTF="m4v"
+	fi
+}
+
 function startEncode {
 	DEFAULT_PATH="$1"
+	checkSize "$1"
 
 	rm -f /tmp/vstats*
 	fullfile=`basename "$1"`
