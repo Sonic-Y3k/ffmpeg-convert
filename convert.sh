@@ -364,9 +364,6 @@ function startEncode {
 	
 	cropFrame=$(cropDetect "$1")
 	
-	echo $(checkFileCodecs)
-	exit 0
-	
 	nice -n 15 ffmpeg -y -vstats_file /tmp/vstats -i "$1" $(checkFileCodecs) -filter:v crop=$cropFrame "$dictPath/output/$filename.$DEFAULT_OUTPUTF" 2>/dev/null & 
         PID=$! && 
 	showFrame "$PID" "$cropFrame"
