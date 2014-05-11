@@ -163,7 +163,7 @@ function checkFileCodecs {
 			returnMap="$returnMap -map 0:$currPos -map 0:$currPos"
 			returnFlag="$returnFlag -c:a:$counter libfaac -b:a:$counter 320k -ac:"$(echo "$counter+1"|bc)" 2"
 			counter=`echo "$counter+1"|bc`
-			returnFlag="$returnFlag -c:a:$counter ac3 -b:a:$counter 640k -ac:"$(echo "$counter+1"|bc)" $(getAudioChannles $i)"
+			returnFlag="$returnFlag -c:a:$counter ac3 -b:a:$counter 640k -ac:"$(echo "$counter+1"|bc)" $(getAudioChannels $i)"
 			counter=`echo "$counter+1"|bc`
 		elif [ "$DEFAULT_OUTPUTF" = "mkv" ]; then
 			i=`echo "$i+1"|bc`
