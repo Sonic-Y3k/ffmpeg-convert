@@ -2,7 +2,7 @@
 DEFAULT_PATH=""
 dictPath="$(pwd)"
 searchExt="avi|flv|iso|mov|mp4|mpeg|mpg|ogg|ogm|ogv|wmv|m2ts|rmvb|rm|3gp|m4a|3g2|mj2|asf|divx|vob|mkv"
-crfVal="18"
+crfVal="18.0"
 
 dictTotal=1
 dictProgress=0
@@ -94,15 +94,36 @@ function getAudioChannels {
 	
 }
 
+function getVidQuality {
+	encInf=$(mediainfo --Output="Video;%Encoded_Library_Settings%" "$DEFAULT_PATH")
+	crf=0.0
+	for x in `echo $encInf | tr " / " "\n"`; 
+	do 
+		if [ "${x:0:3}" = "crf" ];
+		then 
+			#CRF of Video
+			crf=${x:4:6}; 
+		fi
+	done
+	
+	echo ${crf/./}
+}
+
 function checkFileCodecs {
 	numberOfTracks=`echo "$(getAudioInfo 0)+1" |bc`
-
+	
 	returnMap="-loglevel panic -stats -map 0:0"
 	#returnMap="-stats -map 0:0"
 	#returnFlag="-c:v:0 copy"
-	returnFlag="-c:v:0 libx264 -profile:v high -level 4.1 -preset slow -crf $crfVal -tune film"
+	
+	if [ $(printf "%d\n" $(getVidQuality)) -gt $(printf "%d\n" ${crfVal/./}) ]; then 
+		#Vid Quality is lower than expected no need to reencode.
+		returnFlag="-c:v:0 copy"
+	else
+		returnFlag="-c:v:0 libx264 -profile:v high -level 4.1 -preset slow -crf $crfVal -tune film"
+	fi
 	counter=0
-
+	
 	for (( i=0;i<=numberOfTracks;i++ ))
 	do
 		
@@ -230,7 +251,7 @@ function showFrame {
 	echo -e "#  Convert with Pacman"
 	echo -e "#"
 	echo -e "#  Info"
-	echo -e "#    Pacman-Convert:\tVersion 0.2\t\t(built on May 11 2014)"
+	echo -e "#    Pacman-Convert:\tVersion 0.3\t\t(built on May 12 2014)"
 	echo -e "#    ffmpeg:\t\tVersion $(ffmpeg -version |head -n1 |cut -d' ' -f3)\t\t($(ffmpeg -version |sed -n 2p|cut -d'w' -f1| awk '{$1=$1}1'|sed 's/.\{9\}$//'))"
 	echo -e "#    x264:\t\tVersion $(x264 --version|head -n1| cut -d' ' -f2)\t($(x264 --version |sed -n 2p|cut -d',' -f1| awk '{$1=$1}1'))"
 
@@ -342,6 +363,9 @@ function startEncode {
 	filename="${fullfile%.*}"
 	
 	cropFrame=$(cropDetect "$1")
+	
+	echo $(checkFileCodecs)
+	exit 0
 	
 	nice -n 15 ffmpeg -y -vstats_file /tmp/vstats -i "$1" $(checkFileCodecs) -filter:v crop=$cropFrame "$dictPath/output/$filename.$DEFAULT_OUTPUTF" 2>/dev/null & 
         PID=$! && 
