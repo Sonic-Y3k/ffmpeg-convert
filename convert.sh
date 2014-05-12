@@ -332,7 +332,8 @@ function performEncode {
 		calculateTotalVideos
 		find -E "$dictPath" -follow -regex '.*\.('$searchExt')' -print0 | while IFS= read -r -d $'\0' line; do
 			if [ $(dirname "$line") != "$dictPath/output" ]; then
-				startEncode "$line"
+				DEFAULT_PATH="$line"
+				startEncode
 			fi
 		done
 }
@@ -348,26 +349,30 @@ function checkSize {
 	fi
 }
 
-
-function cropDetect
-{
- 		echo $(ffmpeg -i "$@" -t 1 -vf cropdetect -f null - 2>&1 | awk '/crop/ { print $NF }' | tail -1|sed 's/crop=//g' )
+function crop {
+	rm -f /tmp/crop.log
+	fullfile=`basename "$DEFAULT_PATH"`
+	fulldir=`dirname "$DEFAULT_PATH"`
+	
+	nice -n 15 ffmpeg -i $(echo "$fulldir/$fullfile") -t 1 -vframes 1 -ss 50 -vf cropdetect -f null - 2> /tmp/crop.log #&1 |awk '/crop/ { print $NF }' |tail -1
+	
+	cropH=$(awk '/crop/ { print $NF }' /tmp/crop.log|tail -1)
+	
+	printf "%s\n" "$cropH"
 }
 
 function startEncode {
-	DEFAULT_PATH="$1"
-	checkSize "$1"
-
+	checkSize "$DEFAULT_PATH"
+	
 	rm -f /tmp/vstats*
-	fullfile=`basename "$1"`
+	fullfile=`basename "$DEFAULT_PATH"`
 	filename="${fullfile%.*}"
 	
-	cropFrame=$(cropDetect "$1")
+	#echo "$(checkFileCodecs)"
 	
-	nice -n 15 ffmpeg -y -vstats_file /tmp/vstats -i "$1" $(checkFileCodecs) -filter:v crop=$cropFrame "$dictPath/output/$filename.$DEFAULT_OUTPUTF" 2>/dev/null & 
+	nice -n 15 ffmpeg -y -vstats_file /tmp/vstats -i "$DEFAULT_PATH" $(checkFileCodecs) $cropFrame "$dictPath/output/$filename.$DEFAULT_OUTPUTF" 2>/dev/null & 
         PID=$! && 
-	showFrame "$PID" "$cropFrame"
-
+	showFrame "$PID" "0x0"
 	
 	checkSanity
 	
