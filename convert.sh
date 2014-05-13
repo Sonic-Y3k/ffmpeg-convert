@@ -116,7 +116,7 @@ function checkFileCodecs {
 	#returnMap="-stats -map 0:0"
 	#returnFlag="-c:v:0 copy"
 	
-	if [ $(printf "%d\n" $(getVidQuality)) -gt $(printf "%d\n" ${crfVal/./}) ]; then 
+	if [ $(printf "%d\n" $(getVidQuality)) -ge $(printf "%d\n" ${crfVal/./}) ]; then 
 		#Vid Quality is lower than expected no need to reencode.
 		returnFlag="-c:v:0 copy"
 	else
@@ -324,13 +324,13 @@ function checkSanity {
 }
 
 function calculateTotalVideos {
-	dictTotal=`find -E "$dictPath" -follow -regex '.*\.('$searchExt')'|wc -l|sed 's/[^0-9]*//g'`
+	dictTotal=`find -E "$dictPath" -follow -regex '.*\.('$searchExt')' 2>&1|wc -l|sed 's/[^0-9]*//g'`
 }
 
 function performEncode {
 	mkdir -p "$dictPath/output"
 		calculateTotalVideos
-		find -E "$dictPath" -follow -regex '.*\.('$searchExt')' -print0 | while IFS= read -r -d $'\0' line; do
+		find -E "$dictPath" -follow -regex '.*\.('$searchExt')' -print0 2>&1| while IFS= read -r -d $'\0' line; do
 			if [ $(dirname "$line") != "$dictPath/output" ]; then
 				DEFAULT_PATH="$line"
 				startEncode
