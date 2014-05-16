@@ -259,7 +259,7 @@ function showFrame {
 	echo -e "#  Progress:"
 	echo -e "#    File #:\t\t"$(($dictProgress+1))"/$dictTotal"
 	echo -e "#    Filename:\t\t$(getFilename true)"
-	echo -e "#    Resolution:\t$(echo $2|cut -d':' -f1)x$(echo $2|cut -d':' -f2)"
+	echo -e "#    Resolution:\t$2"
 	echo -e "#    Overall:\t\t"
 	cframes=$(getFrameCount)
 	FR_CNT=0
@@ -350,15 +350,46 @@ function checkSize {
 }
 
 function crop {
-	rm -f /tmp/crop.log
-	fullfile=`basename "$DEFAULT_PATH"`
-	fulldir=`dirname "$DEFAULT_PATH"`
-	
-	nice -n 15 ffmpeg -i $(echo "$fulldir/$fullfile") -t 1 -vframes 1 -ss 50 -vf cropdetect -f null - 2> /tmp/crop.log #&1 |awk '/crop/ { print $NF }' |tail -1
-	
-	cropH=$(awk '/crop/ { print $NF }' /tmp/crop.log|tail -1)
-	
-	printf "%s\n" "$cropH"
+	if [ "$(which mplayer)" != "" ]; then
+		SOURCE="$DEFAULT_PATH"
+		CROP="1"
+		TOTAL_LOOPS="10"
+		NICE_PRI="10"
+		VF_OPTS="pp=lb,"
+		A=0
+  		while [ "$A" -lt "$TOTAL_LOOPS" ] ; do
+    		A="$(( $A + 1 ))"
+    		SKIP_SECS="$(( 35 * $A ))"
+    		log=$(nice -n $NICE_PRI nohup mplayer "$SOURCE" $CHAPTER -ss $SKIP_SECS -identify -frames 20 -vo md5sum -ao null -nocache -quiet -vf ${VF_OPTS}cropdetect=20:16 2>&1 > mplayer.log < /dev/null)
+    		CROP[$A]=`awk -F 'crop=' '/crop/ {print $2}' < mplayer.log| awk -F ')' '{print $1}' |tail -n 1`
+    	done
+    	rm md5sums mplayer.log
+    	
+    	B=0
+    	while [ "$B" -lt "$TOTAL_LOOPS" ] ; do
+			B="$(( $B + 1 ))"
+  			C=0
+			while [ "$C" -lt "$TOTAL_LOOPS" ] ; do
+				C="$(( $C + 1 ))"
+  
+				if [ "${CROP[$B]}" == "${CROP[$C]}" ] ; then
+					COUNT_CROP[$B]="$(( ${COUNT_CROP[$B]} + 1 ))"
+				fi
+			done  
+		done
+		
+		HIGHEST_COUNT=0
+		D=0
+		while [ "$D" -lt "$TOTAL_LOOPS" ] ; do
+			D="$(( $D + 1 ))"
+  
+			if [ "${COUNT_CROP[$D]}" -gt "$HIGHEST_COUNT" ] ; then
+				HIGHEST_COUNT="${COUNT_CROP[$D]}"
+				GREATEST="$D"
+			fi
+		done
+		echo $(echo "-filter:v crop=${CROP[$GREATEST]}")    	
+	fi
 }
 
 function startEncode {
@@ -368,11 +399,11 @@ function startEncode {
 	fullfile=`basename "$DEFAULT_PATH"`
 	filename="${fullfile%.*}"
 	
-	#echo "$(checkFileCodecs)"
+	cropVal=$(crop)
 	
-	nice -n 15 ffmpeg -y -vstats_file /tmp/vstats -i "$DEFAULT_PATH" $(checkFileCodecs) $cropFrame "$dictPath/output/$filename.$DEFAULT_OUTPUTF" 2>/dev/null & 
+	nice -n 15 ffmpeg -y -vstats_file /tmp/vstats -i "$DEFAULT_PATH" $(checkFileCodecs) $cropVal "$dictPath/output/$filename.$DEFAULT_OUTPUTF" 2>/dev/null & 
         PID=$! && 
-	showFrame "$PID" "0x0"
+	showFrame "$PID" $(echo "$cropVal"|sed 's/-filter:v crop=//g')
 	
 	checkSanity
 	
