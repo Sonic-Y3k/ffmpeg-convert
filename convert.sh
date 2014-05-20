@@ -324,15 +324,17 @@ function checkSanity {
 }
 
 function calculateTotalVideos {
-	dictTotal=`find -E "$dictPath" -follow -regex '.*\.('$searchExt')' 2>&1|wc -l|sed 's/[^0-9]*//g'`
+	dictTotal=`find -E "$dictPath" -follow -regex '.*\.('$searchExt')' 2>&1|grep -v 'Permission denied'|wc -l|sed 's/[^0-9]*//g'`
 }
 
 function performEncode {
 	mkdir -p "$dictPath/output"
 		calculateTotalVideos
-		find -E "$dictPath" -follow -regex '.*\.('$searchExt')' -print0 2>&1| while IFS= read -r -d $'\0' line; do
-			if [ $(dirname "$line") != "$dictPath/output" ]; then
-				DEFAULT_PATH="$line"
+		find -E "$dictPath" -follow -regex '.*\.('$searchExt')' -print0 2>&1|grep -v 'Permission denied'| while IFS= read -r -d $'\0' line; do
+			stripedLine=$(echo "$line"|sed ':a;N;$!ba;s/\n/ /g')
+				
+			if [[ $(dirname "$stripedLine") != "$dictPath/output" ]]; then
+				DEFAULT_PATH="$stripedLine"
 				startEncode
 			fi
 		done
