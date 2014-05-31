@@ -251,7 +251,7 @@ function showFrame {
 	echo -e "#  Convert with Pacman"
 	echo -e "#"
 	echo -e "#  Info"
-	echo -e "#    Pacman-Convert:\tVersion 0.5\t\t(built on May 20 2014)"
+	echo -e "#    Pacman-Convert:\tVersion 0.6\t\t(built on May 31 2014)"
 	echo -e "#    ffmpeg:\t\tVersion $(ffmpeg -version |head -n1 |cut -d' ' -f3)\t\t($(ffmpeg -version |sed -n 2p|cut -d'w' -f1| awk '{$1=$1}1'|sed 's/.\{9\}$//'))"
 	echo -e "#    x264:\t\tVersion $(x264 --version|head -n1| cut -d' ' -f2)\t($(x264 --version |sed -n 2p|cut -d',' -f1| awk '{$1=$1}1'))"
 
@@ -259,7 +259,11 @@ function showFrame {
 	echo -e "#  Progress:"
 	echo -e "#    File #:\t\t"$(($dictProgress+1))"/$dictTotal"
 	echo -e "#    Filename:\t\t$(getFilename true)"
-	echo -e "#    Resolution:\t$2"
+	if [ "$2" != "" ]; then
+		echo -e "#    Resolution:\t$2"
+	else
+		echo -e "#    Resolution:\tCopying Video"
+	fi
 	echo -e "#    Overall:\t\t"
 	cframes=$(getFrameCount)
 	FR_CNT=0
@@ -401,7 +405,13 @@ function startEncode {
 	fullfile=`basename "$DEFAULT_PATH"`
 	filename="${fullfile%.*}"
 	
-	cropVal=$(crop)
+	fiCod=$(checkFileCodecs)
+	
+	if [[ "$fiCod" != *c:v:0\ copy* ]];
+	then
+		#No video stream copy detected, need to check crop value.
+		cropVal=$(crop)
+	fi
 	
 	nice -n 15 ffmpeg -y -vstats_file /tmp/vstats -i "$DEFAULT_PATH" $(checkFileCodecs) $cropVal "$dictPath/output/$filename.$DEFAULT_OUTPUTF" 2>/dev/null & 
         PID=$! && 
