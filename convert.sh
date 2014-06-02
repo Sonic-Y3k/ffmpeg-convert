@@ -334,8 +334,9 @@ function calculateTotalVideos {
 function performEncode {
 	mkdir -p "$dictPath/output"
 		calculateTotalVideos
-		find -E "$dictPath" -follow -regex '.*\.('$searchExt')' -print0 2>&1|grep -v 'Permission denied'| while IFS= read -r -d $'\0' line; do
-			stripedLine=$(echo "$line"|sed ':a;N;$!ba;s/\n/ /g')
+	
+		find -E "$dictPath" -follow -regex '.*\.('$searchExt')' -print0 2>&1|while IFS= read -r -d $'\0' line; do
+			stripedLine=$(echo "$line"|grep -v "Permission denied"|sed ':a;N;$!ba;s/\n/ /g')
 				
 			if [[ $(dirname "$stripedLine") != "$dictPath/output" ]]; then
 				DEFAULT_PATH="$stripedLine"
