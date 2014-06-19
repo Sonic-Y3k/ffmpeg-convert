@@ -399,10 +399,6 @@ function crop {
 	fi
 }
 
-function pause(){
-   read -n 1 "A"
-}
-
 function checkAvailableSpace {
 	
 	kb=`df -kP "$dictPath" | tail -1 | awk '{print $4}'`
