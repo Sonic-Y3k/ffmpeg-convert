@@ -411,7 +411,7 @@ function checkAvailableSpace {
 	if [ "$kbg" -lt "$obg" ]; then
 		#Not enough space.
 		clear
-		echo -e "Insufficient Disk Space ($kbg GB left).\n\nPlease move some files, the script will refresh the available disk space every 5 Sekonds."
+		echo -e "Insufficient Disk Space ($kbg GB left).\n\nPlease move some files, the script will refresh the available disk space every 5s."
 		
 		sleep 5
 		checkAvailableSpace
