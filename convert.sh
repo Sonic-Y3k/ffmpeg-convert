@@ -251,7 +251,7 @@ function showFrame {
 	echo -e "#  Convert with Pacman"
 	echo -e "#"
 	echo -e "#  Info"
-	echo -e "#    Pacman-Convert:\tVersion 0.6\t\t(built on May 31 2014)"
+	echo -e "#    Pacman-Convert:\tVersion 0.7\t\t(built on Jun 19 2014)"
 	echo -e "#    ffmpeg:\t\tVersion $(ffmpeg -version |head -n1 |cut -d' ' -f3)\t\t($(ffmpeg -version |sed -n 2p|cut -d'w' -f1| awk '{$1=$1}1'|sed 's/.\{9\}$//'))"
 	echo -e "#    x264:\t\tVersion $(x264 --version|head -n1| cut -d' ' -f2)\t($(x264 --version |sed -n 2p|cut -d',' -f1| awk '{$1=$1}1'))"
 
@@ -399,8 +399,32 @@ function crop {
 	fi
 }
 
+function pause(){
+   read -n 1 "A"
+}
+
+function checkAvailableSpace {
+	
+	kb=`df -kP "$dictPath" | tail -1 | awk '{print $4}'`
+	ob=`wc -c "$DEFAULT_PATH" |tail -1 |awk '{print $1}'`
+	
+	#Size in GB
+	kbg=$(echo "$kb/1024/1024"|bc)
+	obg=$(echo "($ob/1024/1024/1024)+1"|bc)
+	
+	if [ "$kbg" -lt "$obg" ]; then
+		#Not enough space.
+		clear
+		echo -e "Insufficient Disk Space ($kbg GB left).\n\nPlease move some files, the script will refresh the available disk space every 5 Sekonds."
+		
+		sleep 5
+		checkAvailableSpace
+	fi
+}
+
 function startEncode {
 	checkSize "$DEFAULT_PATH"
+	checkAvailableSpace
 	
 	rm -f /tmp/vstats*
 	fullfile=`basename "$DEFAULT_PATH"`
