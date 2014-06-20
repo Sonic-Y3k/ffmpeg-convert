@@ -138,9 +138,9 @@ function checkFileCodecs {
 	
 	if [ $(printf "%d\n" $(getVidQuality)) -ge $(printf "%d\n" ${crfVal/./}) ]; then 
 		#Vid Quality is lower than expected no need to reencode.
-		returnFlag="-c:v:0 copy"
+		returnFlag="-c:v:0 copy -c:s copy"
 	else
-		returnFlag="-c:v:0 libx264 -profile:v high -level 4.1 -preset slow -crf $crfVal -tune film"
+		returnFlag="-c:v:0 libx264 -profile:v high -level 4.1 -preset slow -crf $crfVal -tune film -c:s copy"
 	fi
 	counter=0
 	
