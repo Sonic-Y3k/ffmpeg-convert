@@ -20,12 +20,12 @@ f_INFO() {
 
 f_WARNING() {
 	#echo "$@"
-	f_LOG "\e[33mWARNING\e[00m: $@"
+	f_LOG "WARNING: $@"
 }
 
 f_ERROR() {
 	#echo "$@"
-	f_LOG "\e[31mERROR\e[00m: $@"
+	f_LOG "ERROR: $@"
 }
 
 function showBar {
@@ -364,7 +364,7 @@ function performEncode {
 			stripedLine=$(echo "$line"|grep -v "Permission denied"|sed ':a;N;$!ba;s/\n/ /g')
 				
 			if [[ $(dirname "$stripedLine") != "$dictPath/output" ]]; then
-				f_INFO "\e[32m→\e[00m Perform encode on: $stripedLine"
+				f_INFO "→ Perform encode on: $stripedLine"
 				DEFAULT_PATH="$stripedLine"
 				startEncode
 			fi
