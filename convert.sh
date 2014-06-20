@@ -7,6 +7,26 @@ crfVal="18.0"
 dictTotal=1
 dictProgress=0
 DEFAULT_OUTPUTF=""
+LOGFILE="$dictPath/log.$(date +%s).log"
+
+f_LOG() {
+	echo -e "`date`:$@" >> $LOGFILE
+}
+
+f_INFO() {
+	#echo "$@"
+	f_LOG "INFO: $@"
+}
+
+f_WARNING() {
+	#echo "$@"
+	f_LOG "WARNING: $@"
+}
+
+f_ERROR() {
+	#echo "$@"
+	f_LOG "ERROR: $@"
+}
 
 function showBar {
 	percDone=$(echo 'scale=2;'$1/$2*100 | bc)
@@ -251,7 +271,7 @@ function showFrame {
 	echo -e "#  Convert with Pacman"
 	echo -e "#"
 	echo -e "#  Info"
-	echo -e "#    Pacman-Convert:\tVersion 0.7\t\t(built on Jun 19 2014)"
+	echo -e "#    Pacman-Convert:\tVersion 0.8\t\t(built on Jun 20 2014)"
 	echo -e "#    ffmpeg:\t\tVersion $(ffmpeg -version |head -n1 |cut -d' ' -f3)\t\t($(ffmpeg -version |sed -n 2p|cut -d'w' -f1| awk '{$1=$1}1'|sed 's/.\{9\}$//'))"
 	echo -e "#    x264:\t\tVersion $(x264 --version|head -n1| cut -d' ' -f2)\t($(x264 --version |sed -n 2p|cut -d',' -f1| awk '{$1=$1}1'))"
 
@@ -322,6 +342,9 @@ function checkSanity {
 		if [ $leDif -lt 30 ]; then
 			#Differs by max. thirty Seconds... Okay delete Original.
 			rm "$DEFAULT_PATH"
+			f_INFO "Passed sanity check. Deleting original video."
+		else
+			f_WARNING "Failed sanity check. Keep all files."
 		fi
 	fi
 
@@ -334,11 +357,14 @@ function calculateTotalVideos {
 function performEncode {
 	mkdir -p "$dictPath/output"
 		calculateTotalVideos
-	
+		
+		f_INFO "Found $dictTotal media files."
+		
 		find -E "$dictPath" -follow -regex '.*\.('$searchExt')' -print0 2>&1|while IFS= read -r -d $'\0' line; do
 			stripedLine=$(echo "$line"|grep -v "Permission denied"|sed ':a;N;$!ba;s/\n/ /g')
 				
 			if [[ $(dirname "$stripedLine") != "$dictPath/output" ]]; then
+				f_INFO "Perform encode on: $stripedLine"
 				DEFAULT_PATH="$stripedLine"
 				startEncode
 			fi
@@ -410,10 +436,11 @@ function checkAvailableSpace {
 	
 	if [ "$kbg" -lt "$obg" ]; then
 		#Not enough space.
+		f_ERROR "Insufficient Disk Space ($kbg GB left)."
 		clear
-		echo -e "Insufficient Disk Space ($kbg GB left).\n\nPlease move some files, the script will refresh the available disk space every 5s."
+		echo -e "Insufficient Disk Space ($kbg GB left).\n\nPlease move some files, the script will refresh the available disk space every 60s."
 		
-		sleep 5
+		sleep 60
 		checkAvailableSpace
 	fi
 }
@@ -432,8 +459,11 @@ function startEncode {
 	then
 		#No video stream copy detected, need to check crop value.
 		cropVal=$(crop)
+		f_INFO "Cropping Video to: $(echo $cropVal|sed 's/-filter:v crop=//g')"
 	fi
 	
+	f_INFO "\tffmpeg-command:\n\t\t\t\t\tffmpeg -y -vstats_file /tmp/vstats -i \"$DEFAULT_PATH\" $(checkFileCodecs) $cropVal \"$dictPath/output/$filename.$DEFAULT_OUTPUTF\" "
+		
 	nice -n 15 ffmpeg -y -vstats_file /tmp/vstats -i "$DEFAULT_PATH" $(checkFileCodecs) $cropVal "$dictPath/output/$filename.$DEFAULT_OUTPUTF" 2>/dev/null & 
         PID=$! && 
 	showFrame "$PID" $(echo "$cropVal"|sed 's/-filter:v crop=//g')
@@ -442,6 +472,8 @@ function startEncode {
 	
 	rm -f /tmp/vstats*
 	dictProgress=`echo "$dictProgress+1"|bc`
+	f_INFO "Encoding for $DEFAULT_PATH done."
 }
 
+f_INFO "Started 'Convert with Pacman'."
 performEncode
