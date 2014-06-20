@@ -339,7 +339,7 @@ function checkSanity {
 			leDif=$(echo "$leDif*-1"|bc)
 		fi
 		
-		if [ $leDif -lt 30 ]; then
+		if [ $leDif -lt 60 ]; then
 			#Differs by max. thirty Seconds... Okay delete Original.
 			rm "$DEFAULT_PATH"
 			f_INFO "Passed sanity check. Deleting original video."
@@ -462,7 +462,7 @@ function startEncode {
 		f_INFO "Cropping Video to: $(echo $cropVal|sed 's/-filter:v crop=//g')"
 	fi
 	
-	f_INFO "\tffmpeg-command:\n\t\t\t\t\tffmpeg -y -vstats_file /tmp/vstats -i \"$DEFAULT_PATH\" $(checkFileCodecs) $cropVal \"$dictPath/output/$filename.$DEFAULT_OUTPUTF\" "
+	f_INFO "ffmpeg-command:\n\nffmpeg -y -vstats_file /tmp/vstats -i \"$DEFAULT_PATH\" $(checkFileCodecs) $cropVal \"$dictPath/output/$filename.$DEFAULT_OUTPUTF\"\n"
 		
 	nice -n 15 ffmpeg -y -vstats_file /tmp/vstats -i "$DEFAULT_PATH" $(checkFileCodecs) $cropVal "$dictPath/output/$filename.$DEFAULT_OUTPUTF" 2>/dev/null & 
         PID=$! && 
