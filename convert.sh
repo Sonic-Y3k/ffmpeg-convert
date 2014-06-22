@@ -344,14 +344,14 @@ function checkSanity {
 			rm "$DEFAULT_PATH"
 			f_INFO "Passed sanity check. Deleting original video."
 		else
-			f_WARNING "Failed sanity check. Keep all files."
+			f_WARNING "Failed sanity check (diff $leOne, $leTwo = $leDif < 60). Keep all files."
 		fi
 	fi
 
 }
 
 function calculateTotalVideos {
-	dictTotal=`find -E "$dictPath" -follow -regex '.*\.('$searchExt')' 2>&1|grep -v 'Permission denied'|wc -l|sed 's/[^0-9]*//g'`
+	dictTotal=`find -E "$dictPath" -follow -regex '.*\.('$searchExt')' 2>&1|grep -v 'Permission denied'|grep -v '/output/'|wc -l|sed 's/[^0-9]*//g'`
 }
 
 function performEncode {
@@ -364,7 +364,7 @@ function performEncode {
 			stripedLine=$(echo "$line"|grep -v "Permission denied"|sed ':a;N;$!ba;s/\n/ /g')
 				
 			if [[ $(dirname "$stripedLine") != "$dictPath/output" ]]; then
-				f_INFO "→ Perform encode on: $stripedLine"
+				f_INFO "Perform encode on: $stripedLine"
 				DEFAULT_PATH="$stripedLine"
 				startEncode
 			fi
