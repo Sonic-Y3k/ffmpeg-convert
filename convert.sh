@@ -339,8 +339,8 @@ function checkSanity {
 			leDif=$(echo "$leDif*-1"|bc)
 		fi
 		
-		if [ $leDif -lt 60 ]; then
-			#Differs by max. thirty Seconds... Okay delete Original.
+		if [ $leDif -lt 250 ]; then
+			#Differs by max. 250 ms... Okay delete Original.
 			rm "$DEFAULT_PATH"
 			f_INFO "Passed sanity check. Deleting original video."
 		else
