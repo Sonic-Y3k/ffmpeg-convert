@@ -344,7 +344,7 @@ function checkSanity {
 			rm "$DEFAULT_PATH"
 			f_INFO "Passed sanity check. Deleting original video."
 		else
-			f_WARNING "Failed sanity check (diff $leOne, $leTwo = $leDif < 60). Keep all files."
+			f_WARNING "Failed sanity check (diff $leOne, $leTwo = $leDif < 250). Keep all files."
 		fi
 	fi
 
