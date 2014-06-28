@@ -364,6 +364,7 @@ function showFrame {
     			FR_CNT=$VSTATS
     			ELAPSED=$(( $(date +%s) - START )); echo $ELAPSED > /tmp/elapsed.value
     			FPS=$(echo "$FR_CNT/$ELAPSED"|bc)
+    			FPS=$(($FPS>1?$FPS:1))
     			ETA=$(show_time $(echo "($cframes-$FR_CNT)/$FPS"|bc))
     			
        			dictPer=$(echo 'scale=2;'$dictProgress+$FR_CNT/$cframes | bc)
