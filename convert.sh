@@ -243,7 +243,7 @@ function checkFileCodecs {
 			done
 			
 			if [ $doubleLang = false ]; then
-				returnMap="$returnMap -map 0:$i -map 0:$i"
+				returnMap="$returnMap -map 0:"$(echo "$i-1"|bc)" -map 0:"$(echo "$i-1"|bc)"
 				returnFlag="$returnFlag -c:a:$audCount copy"
 				f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (copy)"
 				newCount=$(echo "$newCount+1"|bc)
