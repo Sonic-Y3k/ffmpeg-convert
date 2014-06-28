@@ -528,7 +528,7 @@ function startEncode {
 	
 	#exit 0
 	
-	nice -n 15 ffmpeg -y -vstats_file /tmp/vstats -i "$DEFAULT_PATH" "$fiCod" $cropVal "$dictPath/output/$filename.$DEFAULT_OUTPUTF" 2>/dev/null & 
+	nice -n 15 ffmpeg -y -vstats_file /tmp/vstats -i "$DEFAULT_PATH" $fiCod $cropVal "$dictPath/output/$filename.$DEFAULT_OUTPUTF" 2>/dev/null & 
         PID=$! && 
 	showFrame "$PID" $(echo "$cropVal"|sed 's/-filter:v crop=//g')
 	
