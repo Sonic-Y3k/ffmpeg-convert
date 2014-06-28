@@ -162,12 +162,12 @@ function getVidQuality {
 }
 
 function checkFileCodecs {
-	returnMap="-loglevel panic -stats -map 0:0"
+	returnMap="-loglevel panic -stats"
 	subCount=0
 	audCount=0
 	newCount=0
 	
-	numberOfTracks=`echo "$(getAudioInfo -1)+1" |bc`
+	numberOfTracks=`echo "$(getAudioInfo -1)" |bc`
 
 	f_INFO "Analyze $numberOfTracks Tracks:"
 	for (( i=0;i<=numberOfTracks;i++ ))
@@ -175,13 +175,18 @@ function checkFileCodecs {
 		currCod="$(getAudioCodec $i)"
 		#Video
 		if [[ "$currCod" == "AVC" || "$currCod" == "AVI" || "$currCod" == "MPEG-4" ]]; then
-		
+			
+			if [ $i -eq 0 ]; then
+				tempInc="+1"
+			fi
 			if [ $(printf "%d\n" $(getVidQuality)) -ge $(printf "%d\n" ${crfVal/./}) ]; then 
 			#Vid Quality is lower than expected no need to reencode.
+				returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc)"
 				returnFlag="-c:v:0 copy"
 				f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (copy)"
 				newCount=$(echo "$newCount+1"|bc)
 			else
+				returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc)"
 				returnFlag="-c:v:0 libx264 -profile:v high -level 4.1 -preset slow -crf $crfVal -tune film"
 				f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (libx264)"
 				newCount=$(echo "$newCount+1"|bc)
@@ -189,7 +194,7 @@ function checkFileCodecs {
 		
 		#Audio
 		elif [[ "$DEFAULT_OUTPUTF" == "mkv" && ( "$currCod" = "DTS" || "$currCod" = "AC-3" ) ]]; then
-			returnMap="$returnMap -map 0:"$(echo "$i-1"|bc)
+			returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc)"
 			returnFlag="$returnFlag -c:a:$audCount copy"
 			audCount=$(echo "$audCount+1"|bc)
 			f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (copy)"
@@ -205,7 +210,7 @@ function checkFileCodecs {
 			done
 			
 			if [ $doubleLang = false ]; then
-				returnMap="$returnMap -map 0:$i -map 0:$i"
+				returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc) -map 0:$(echo $i-1|bc)"
 				returnFlag="$returnFlag -c:a:$audCount libfaac -b:a:$audCount 320k -ac:"$(echo "$audCount+1"|bc)" 2"
 				f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (libfaac)"
 				newCount=$(echo "$newCount+1"|bc)
@@ -216,14 +221,14 @@ function checkFileCodecs {
 				newCount=$(echo "$newCount+1"|bc)
 				
 			else
-				returnMap="$returnMap -map 0:$i"
+				returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc)"
 				returnFlag="$returnFlag -c:a:$audCount copy"
 				f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (copy)"
 				audCount=$(echo "$audCount+1"|bc)
 				newCount=$(echo "$newCount+1"|bc)
 			fi
 		elif [[ "$DEFAULT_OUTPUTF" = "m4v" && ("$currCod" = "DTS" || "$currCod" = "MP3") ]]; then
-			returnMap="$returnMap -map 0:$i -map 0:$i"
+			returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc) -map 0:$(echo $i-1$tempInc|bc)"
 			returnFlag="$returnFlag -c:a:$audCount libfaac -b:a:$audCount 320k -ac:"$(echo "$audCount+1"|bc)" 2"
 			f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (libfaac)"
 			newCount=$(echo "$newCount+1"|bc)
@@ -243,7 +248,7 @@ function checkFileCodecs {
 			done
 			
 			if [ $doubleLang = false ]; then
-				returnMap="$returnMap -map 0:"$(echo "$i-1"|bc)" -map 0:"$(echo "$i-1"|bc)"
+				returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc) -map 0:$(echo $i-1|bc)"
 				returnFlag="$returnFlag -c:a:$audCount copy"
 				f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (copy)"
 				newCount=$(echo "$newCount+1"|bc)
@@ -253,7 +258,7 @@ function checkFileCodecs {
 				newCount=$(echo "$newCount+1"|bc)
 				audCount=$(echo "$audCount+1"|bc)
 			else
-				returnMap="$returnMap -map 0:$i"
+				returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc)"
 				returnFlag="$returnFlag -c:a:$audCount copy"
 				f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (copy)"
 				newCount=$(echo "$newCount+1"|bc)
@@ -262,13 +267,13 @@ function checkFileCodecs {
 			
 		#Subtitles
 		elif [[ "$DEFAULT_OUTPUTF" = "mkv" && ( "$currCod" = "PGS" || "$currCod" = "VobSub" || "$currCod" = "UTF-8" ) ]]; then
-			returnMap="$returnMap -map 0:$i"
+			returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc)"
 			returnFlag="$returnFlag -c:s:$subCount copy"
 			f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (copy)"
 			newCount=$(echo "$newCount+1"|bc)
 			subCount=$(echo "$subCount+1"|bc)
 		elif [[ "$DEFAULT_OUTPUTF" = "m4v" && ( "$currCod" = "PGS" || "$currCod" = "UTF-8" || "$currCod" = "MOV" || "$currCod" = "mov_text" || "$currCod" = "text" ) ]]; then
-			returnMap="$returnMap -map 0:$i"
+			returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc)"
 			returnFlag="$returnFlag -c:s:$subCount mov_text"
 			f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (mov_text)"
 			newCount=$(echo "$newCount+1"|bc)
@@ -521,7 +526,7 @@ function startEncode {
 	
 	f_INFO "ffmpeg-command:\n\nffmpeg -y -vstats_file /tmp/vstats -i \"$DEFAULT_PATH\" $fiCod $cropVal \"$dictPath/output/$filename.$DEFAULT_OUTPUTF\"\n"
 	
-	#exit 0
+	exit 0
 	
 	nice -n 15 ffmpeg -y -vstats_file /tmp/vstats -i "$DEFAULT_PATH" "$fiCod" $cropVal "$dictPath/output/$filename.$DEFAULT_OUTPUTF" 2>/dev/null & 
         PID=$! && 
