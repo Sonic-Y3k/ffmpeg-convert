@@ -333,7 +333,7 @@ function showFrame {
 	echo -e "#  Convert with Pacman"
 	echo -e "#"
 	echo -e "#  Info"
-	echo -e "#    Pacman-Convert:\tVersion 1.0\t\t(built on Jun 28 2014)"
+	echo -e "#    Pacman-Convert:\tVersion 1.1\t\t(built on Jun 29 2014)"
 	echo -e "#    ffmpeg:\t\tVersion $(ffmpeg -version |head -n1 |cut -d' ' -f3)\t\t($(ffmpeg -version |sed -n 2p|cut -d'w' -f1| awk '{$1=$1}1'|sed 's/.\{9\}$//'))"
 	echo -e "#    x264:\t\tVersion $(x264 --version|head -n1| cut -d' ' -f2)\t($(x264 --version |sed -n 2p|cut -d',' -f1| awk '{$1=$1}1'))"
 
@@ -518,7 +518,7 @@ function startEncode {
 	
 	fiCod=$(checkFileCodecs)
 	
-	if [[ "$fiCod" != *c:v:0\ copy* ]];
+	if [[ "$fiCod" != *c:v:?\ copy* ]];
 	then
 		#No video stream copy detected, need to check crop value.
 		cropVal=$(crop)
