@@ -227,13 +227,14 @@ function checkFileCodecs {
 				audCount=$(echo "$audCount+1"|bc)
 				newCount=$(echo "$newCount+1"|bc)
 			fi
-		elif [[ "$DEFAULT_OUTPUTF" = "m4v" && ("$currCod" = "DTS" || "$currCod" = "MP3") ]]; then
+		elif [[ "$DEFAULT_OUTPUTF" = "m4v" && ("$currCod" = "DTS" || "$currCod" = "MP3" || "$currCod" = "MPEG" ) ]]; then
 			returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc) -map 0:$(echo $i-1$tempInc|bc)"
 			returnFlag="$returnFlag -c:a:$audCount libfaac -b:a:$audCount 320k -ac:"$(echo "$audCount+1"|bc)" 2"
 			f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (libfaac)"
 			newCount=$(echo "$newCount+1"|bc)
 			audCount=$(echo "$audCount+1"|bc)
-			returnFlag="$returnFlag -c:a:$audCount ac3 -b:a:$audCount 640k -ac:"$(echo "$audCount+1"|bc)" $(getAudioChannels $i)"
+			audChannels=$(getAudioChannels $i)
+			returnFlag="$returnFlag -c:a:$audCount ac3 -b:a:$audCount 640k -ac:"$(echo "$audCount+1"|bc)" "$((audChannels>1?audChannels:2))" "
 			f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (ac3)"
 			newCount=$(echo "$newCount+1"|bc)
 			audCount=$(echo "$audCount+1"|bc)
@@ -333,7 +334,7 @@ function showFrame {
 	echo -e "#  Convert with Pacman"
 	echo -e "#"
 	echo -e "#  Info"
-	echo -e "#    Pacman-Convert:\tVersion 1.1\t\t(built on Jun 29 2014)"
+	echo -e "#    Pacman-Convert:\tVersion 1.2\t\t(built on Jul 02 2014)"
 	echo -e "#    ffmpeg:\t\tVersion $(ffmpeg -version |head -n1 |cut -d' ' -f3)\t\t($(ffmpeg -version |sed -n 2p|cut -d'w' -f1| awk '{$1=$1}1'|sed 's/.\{9\}$//'))"
 	echo -e "#    x264:\t\tVersion $(x264 --version|head -n1| cut -d' ' -f2)\t($(x264 --version |sed -n 2p|cut -d',' -f1| awk '{$1=$1}1'))"
 
