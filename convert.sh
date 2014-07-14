@@ -334,7 +334,7 @@ function showFrame {
 	echo -e "#  Convert with Pacman"
 	echo -e "#"
 	echo -e "#  Info"
-	echo -e "#    Pacman-Convert:\tVersion 1.2\t\t(built on Jul 02 2014)"
+	echo -e "#    Pacman-Convert:\tVersion 1.3\t\t(built on Jul 14 2014)"
 	echo -e "#    ffmpeg:\t\tVersion $(ffmpeg -version |head -n1 |cut -d' ' -f3)\t\t($(ffmpeg -version |sed -n 2p|cut -d'w' -f1| awk '{$1=$1}1'|sed 's/.\{9\}$//'))"
 	echo -e "#    x264:\t\tVersion $(x264 --version|head -n1| cut -d' ' -f2)\t($(x264 --version |sed -n 2p|cut -d',' -f1| awk '{$1=$1}1'))"
 
