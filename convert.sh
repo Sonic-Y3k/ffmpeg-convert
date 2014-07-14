@@ -84,7 +84,7 @@ function getAudioInfo {
 			count=`echo "$count+1" |bc`
 		done
 		
-		for tI in  `mediainfo --Inform="Audio;%ID%:%Language/String%:%Format%:%Channels%\n" "$DEFAULT_PATH"| cut -d' ' -f1`
+		for tI in  `mediainfo --Inform="Text;%ID%:%Language/String%:%Format%:%Channels%\n" "$DEFAULT_PATH"| cut -d' ' -f1`
 		do
 			count=`echo "$count+1" |bc`
 		done
