@@ -70,53 +70,36 @@ function getAudioInfo {
 		exit 0
 	fi
 	
-	
+	#Create ffprobe output
+	ffprobe -v quiet -print_format json -show_format -show_streams "$DEFAULT_PATH" > ffprobe.txt
+
 	if [ "$1" = "-1" ]; then
-		count=0
-		
-		for vI in  `mediainfo --Inform="Video;%ID%:%Language/String%:%Format%:%Channels%\n" "$DEFAULT_PATH"| cut -d' ' -f1`
-		do
-			count=`echo "$count+1" |bc`
-		done
-		
-		for aI in  `mediainfo --Inform="Audio;%ID%:%Language/String%:%Format%:%Channels%\n" "$DEFAULT_PATH"| cut -d' ' -f1`
-		do
-			count=`echo "$count+1" |bc`
-		done
-		
-		for tI in  `mediainfo --Inform="Text;%ID%:%Language/String%:%Format%:%Channels%\n" "$DEFAULT_PATH"| cut -d' ' -f1`
-		do
-			count=`echo "$count+1" |bc`
-		done
-		echo "$count"
+		ret=`cat ffprobe.txt |jsawk 'return this.format' |jsawk 'return this.nb_streams'`
 	else
-		ret=""
-		for vI in  `mediainfo --Inform="Video;%ID%:Unknown:%Format%:Unknown\n" "$DEFAULT_PATH"| cut -d' ' -f1`
-		do
-			if [ $(echo $vI|cut -d':' -f1) = "$1" ]; then
-				ret="$vI"
-			fi
-		done	
-		for aI in  `mediainfo --Inform="Audio;%ID%:%Language/String%:%Format%:%Channels%\n" "$DEFAULT_PATH"| cut -d' ' -f1`
-		do
-			if [ $(echo $aI|cut -d':' -f1) = "$1" ]; then
-				ret="$aI"
-			fi
-		done
-		for tI in  `mediainfo --Inform="Text;%ID%:%Language/String%:%Format%:%Channels%\n" "$DEFAULT_PATH"| cut -d' ' -f1`
-		do
-			if [ $(echo $tI|cut -d':' -f1) = "$1" ]; then
-				ret="$tI"
-			fi
-		done
-		
-		if [ "$ret" == "" ]; then
-			echo "Unknown"
+		if [[ $(cat ffprobe.txt |grep "language") = "" ]];
+		then
+			myl="{a:this.index,b:this.tags.LANGUAGE,c:this.codec_name,d:this.channels}"
 		else
-			echo "$ret"
+			myl="{a:this.index,b:this.tags.language,c:this.codec_name,d:this.channels}"
 		fi
-		
+	
+		for info in `cat ffprobe.txt |jsawk 'return this.streams' |jsawk 'return '$myl'' | jsawk -n 'out (this)' | sed 's/\"//g' | sed 's/{a://g' | sed 's/b://g' | sed 's/c://g' | sed 's/d://g' | sed 's/}//g'`
+		do
+			if [ $(echo $info|cut -d',' -f1) = "$1" ]; then
+				ret="$info"
+			fi
+		done
 	fi
+	
+	#Return something.
+	if [ "$ret" == "" ]; then
+		echo "Unknown"
+	else
+		echo "$ret"
+	fi
+	
+	#Delete ffprobe.txt
+	rm ffprobe.txt 
 }
 
 function getAudioLanguage {
@@ -124,8 +107,15 @@ function getAudioLanguage {
 		#You need to specify a Track#
 		exit 0
 	fi
-	echo $(echo $(getAudioInfo $1)|cut -d':' -f2)
 	
+	ret=$(echo $(getAudioInfo $1)|cut -d',' -f2)
+	
+	if [ "$ret" != "" ];
+	then
+		echo "$ret"
+	else
+		echo "und"
+	fi
 }
 
 function getAudioCodec {
@@ -134,7 +124,7 @@ function getAudioCodec {
 		exit 0
 	fi
 	
-	echo $(echo $(getAudioInfo $1)|cut -d':' -f3)
+	echo $(echo $(getAudioInfo $1)|cut -d',' -f3)
 }
 
 function getAudioChannels {
@@ -142,7 +132,7 @@ function getAudioChannels {
 		#You need to specify a Track#
 		exit 0
 	fi
-	echo $(echo $(getAudioInfo $1)|cut -d':' -f4)
+	echo $(echo $(getAudioInfo $1)|cut -d',' -f4)
 	
 }
 
@@ -161,6 +151,12 @@ function getVidQuality {
 	echo ${crf/./}
 }
 
+containsElement () {
+	local e
+	for e in "${@:2}"; do [[ "$e" == "$1" ]] && return 0; done
+	return 1
+}
+
 function checkFileCodecs {
 	returnMap="-loglevel panic -stats"
 	subCount=0
@@ -170,117 +166,148 @@ function checkFileCodecs {
 	numberOfTracks=`echo "$(getAudioInfo -1)" |bc`
 
 	f_INFO "Analyze $numberOfTracks Tracks:"
-	for (( i=0;i<=numberOfTracks;i++ ))
-	do
+	f_INFO "Video:"
+	#Video Tracks
+	for (( i=0; i<$numberOfTracks; i++ )) {
 		currCod="$(getAudioCodec $i)"
-		#Video
-		if [[ "$currCod" == "AVC" || "$currCod" == "AVI" || "$currCod" == "MPEG-4" ]]; then
-			
-			if [ $i -eq 0 ]; then
-				tempInc="+1"
-			fi
+		
+		vidcodecs=("hevc" "amv" "asv1" "asv2" "avrp" "avui" "ayuv" "bmp" "cinepak" "cljr" "dnxhd" "dpx" "dvvideo" "ffv1" "ffvhuff" "flashsv" "flashsv2" "flv1" "gif" "h261" "h263" "h263p" "h264" "huffyuv" "jpeg2000" "jpegls" "mjpeg" "mpeg1video" "mpeg2video" "mpeg4" "msmpeg4v2" "msmpeg4v3" "msvideo1" "pam" "pbm" "pcx" "pgm" "pgmyuv" "png" "ppm" "prores" "qtrle" "r10k" "r210" "rawvideo" "roq" "rv10" "rv20" "sgi" "snow" "sunrast" "svq1" "targa" "tiff" "utvideo" "v210" "v308" "v408" "v410" "wmv1" "wmv2" "xbm" "xface" "xwd" "y41p" "yuv4" "zlib")
+		containsElement "$currCod" "${vidcodecs[@]}"
+		testVid="$?"
+		if [ "$testVid" = "0" ];
+		then
 			if [ $(printf "%d\n" $(getVidQuality)) -ge $(printf "%d\n" ${crfVal/./}) ]; then 
-			#Vid Quality is lower than expected no need to reencode.
-				returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc)"
+				returnMap="$returnMap -map 0:$(echo $i|bc)"
 				returnFlag="-c:v:0 copy"
 				f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (copy)"
-				newCount=$(echo "$newCount+1"|bc)
 			else
-				returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc)"
+				returnMap="$returnMap -map 0:$(echo $i|bc)"
 				returnFlag="-c:v:0 libx264 -profile:v high -level 4.1 -preset slow -crf $crfVal -tune film"
 				f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (libx264)"
 				newCount=$(echo "$newCount+1"|bc)
 			fi
+		fi
+	}
+
+	f_INFO "Audio:"
+	#Audio Tracks
+	for (( i=0; i<$numberOfTracks; i++ )) {
+		currCod="$(getAudioCodec $i)"
 		
-		#Audio
-		elif [[ "$DEFAULT_OUTPUTF" == "mkv" && ( "$currCod" = "DTS" || "$currCod" = "AC-3" ) ]]; then
-			returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc)"
+		audcodecs=("dca" "real_144" "libmp3lame" "mp2fixed" "g726" "g722" "ac3_fixed" "libfaac" "adpcm_adx" "adpcm_g722" "adpcm_g726" "adpcm_ima_qt" "adpcm_ima_wav" "adpcm_ms" "adpcm_swf" "adpcm_yamaha" "alac" "comfortnoise" "dts" "eac3" "flac" "g723_1" "mp2" "mp3" "nellymoser" "pcm_alaw" "pcm_f32be" "pcm_f32le" "pcm_f64be" "pcm_f64le" "pcm_mulaw" "pcm_s16be" "pcm_s16be_planar" "pcm_s16le" "pcm_s16le_planar" "pcm_s24be" "pcm_s24daud" "pcm_s24le" "pcm_s24le_planar" "pcm_s32be" "pcm_s32le" "pcm_s32le_planar" "pcm_s8" "pcm_s8_planar" "pcm_u16be" "pcm_u16le" "pcm_u24be" "pcm_u24le" "pcm_u32be" "pcm_u32le" "pcm_u8" "ra_144" "roq_dpcm" "s302m" "sonic" "tta" "vorbis" "wavpack" "wmav1" "wmav2")
+		containsElement "$currCod" "${audcodecs[@]}"
+		testAud="$?"
+		
+		#Output as mkv-format - just copy audio...
+		if [[ "$DEFAULT_OUTPUTF" == "mkv" && ( "$currCod" = "dca" || "$currCod" = "ac3" ) ]]; then
+			returnMap="$returnMap -map 0:$i"
 			returnFlag="$returnFlag -c:a:$audCount copy"
 			audCount=$(echo "$audCount+1"|bc)
-			f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (copy)"
-			newCount=$(echo "$newCount+1"|bc)
-		elif [[ "$DEFAULT_OUTPUTF" == "m4v" && "$currCod" == "AC-3" ]]; then
-		#Found AC3-Codec, check for AAC with same language
+			f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (copy)"
+		
+		#Output as m4v-format with ac3
+		elif [[ "$DEFAULT_OUTPUTF" == "m4v" && "$currCod" == "ac3" ]]; then
+			#Checking for already converted audio
 			doubleLang=false;
 			ac3Lang="$(getAudioLanguage $i)"
 			for (( j=0;j<=numberOfTracks;j++ )) do
-				if [[ "$(getAudioLanguage $j)" = "$ac3Lang"  &&  "$(getAudioCodec $j)" = "AAC" ]]; then
+				if [[ "$(getAudioLanguage $j)" = "$ac3Lang"  &&  "$(getAudioCodec $j)" = "aac" ]]; then
 					doubleLang=true;
 				fi
 			done
 			
+			#No already converted audio found
 			if [ $doubleLang = false ]; then
-				returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc) -map 0:$(echo $i-1|bc)"
+				returnMap="$returnMap -map 0:$i -map 0:$i"
 				returnFlag="$returnFlag -c:a:$audCount libfaac -b:a:$audCount 320k -ac:"$(echo "$audCount+1"|bc)" 2"
-				f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (libfaac)"
+				f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (libfaac)"
 				newCount=$(echo "$newCount+1"|bc)
 				audCount=$(echo "$audCount+1"|bc)
 				returnFlag="$returnFlag -c:a:$audCount copy"
-				f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (copy)"
+				f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (copy)"
 				audCount=$(echo "$audCount+1"|bc)
 				newCount=$(echo "$newCount+1"|bc)
-				
 			else
-				returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc)"
+				returnMap="$returnMap -map 0:$i"
 				returnFlag="$returnFlag -c:a:$audCount copy"
-				f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (copy)"
+				f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (copy)"
 				audCount=$(echo "$audCount+1"|bc)
 				newCount=$(echo "$newCount+1"|bc)
 			fi
-		elif [[ "$DEFAULT_OUTPUTF" = "m4v" && ("$currCod" = "DTS" || "$currCod" = "MP3" || "$currCod" = "MPEG" ) ]]; then
-			returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc) -map 0:$(echo $i-1$tempInc|bc)"
+		
+			
+		#Output as m4v-format with DTS,MP3, ...
+		
+		elif [[ "$DEFAULT_OUTPUTF" = "m4v" && "$testAud" = "0" ]]; then
+			returnMap="$returnMap -map 0:$i -map 0:$i"
 			returnFlag="$returnFlag -c:a:$audCount libfaac -b:a:$audCount 320k -ac:"$(echo "$audCount+1"|bc)" 2"
-			f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (libfaac)"
+			f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (libfaac)"
 			newCount=$(echo "$newCount+1"|bc)
 			audCount=$(echo "$audCount+1"|bc)
 			audChannels=$(getAudioChannels $i)
 			returnFlag="$returnFlag -c:a:$audCount ac3 -b:a:$audCount 640k -ac:"$(echo "$audCount+1"|bc)" "$((audChannels>1?audChannels:2))" "
-			f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (ac3)"
+			f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (ac3)"
 			newCount=$(echo "$newCount+1"|bc)
 			audCount=$(echo "$audCount+1"|bc)
-		elif [[ "$DEFAULT_OUTPUTF" == "m4v" && "$currCod" == "AAC" ]]; then
-		#Found AAC-Codec, check for AC3 with same language
+			
+		#Output as m4v-format with AAC
+		elif [[ "$DEFAULT_OUTPUTF" == "m4v" && "$currCod" == "aac" ]]; then
+			#Checking for already converted audio
 			doubleLang=false;
 			ac3Lang="$(getAudioLanguage $i)"
 			for (( j=0;j<=numberOfTracks;j++ )) do
-				if [[ "$(getAudioLanguage $j)" = "$ac3Lang"  &&  "$(getAudioCodec $j)" = "AC-3" ]]; then
+				if [[ "$(getAudioLanguage $j)" = "$ac3Lang"  &&  "$(getAudioCodec $j)" = "ac3" ]]; then
 					doubleLang=true;
 				fi
 			done
 			
+			#No already converted audio found
 			if [ $doubleLang = false ]; then
-				returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc) -map 0:$(echo $i-1|bc)"
+				returnMap="$returnMap -map 0:$i -map 0:$i"
 				returnFlag="$returnFlag -c:a:$audCount copy"
-				f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (copy)"
+				f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (copy)"
 				newCount=$(echo "$newCount+1"|bc)
 				audCount=$(echo "$audCount+1"|bc)
 				returnFlag="$returnFlag -c:a:$audCount ac3 -b:a:$audCount 640k -ac:$audCount $(getAudioChannels $i)"
-				f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (ac3)"
+				f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (ac3)"
 				newCount=$(echo "$newCount+1"|bc)
 				audCount=$(echo "$audCount+1"|bc)
 			else
-				returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc)"
+				returnMap="$returnMap -map 0:$i"
 				returnFlag="$returnFlag -c:a:$audCount copy"
-				f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (copy)"
+				f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (copy)"
 				newCount=$(echo "$newCount+1"|bc)
 				audCount=$(echo "$audCount+1"|bc)
 			fi
-			
-		#Subtitles
-		elif [[ "$DEFAULT_OUTPUTF" = "mkv" && ( "$currCod" = "PGS" || "$currCod" = "VobSub" || "$currCod" = "UTF-8" ) ]]; then
-			returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc)"
+		fi
+	}
+	
+	f_INFO "Subtitles:"
+	#Subtitle Tracks
+	for (( i=0; i<$numberOfTracks; i++ )) {
+		currCod="$(getAudioCodec $i)"
+		subcodecs=("ass" "dvb_subtitle" "dvd_subtitle" "mov_text" "srt" "ssa" "subrip" "xsub" "pgssub")
+		containsElement "$currCod" "${subcodecs[@]}"
+		testSub="$?"
+		
+		#Output as m4v-format
+		if [[ "$DEFAULT_OUTPUTF" = "mkv" && "$testSub" = "0" ]]; then
+			returnMap="$returnMap -map 0:$i"
 			returnFlag="$returnFlag -c:s:$subCount copy"
-			f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (copy)"
+			f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (copy)"
 			newCount=$(echo "$newCount+1"|bc)
 			subCount=$(echo "$subCount+1"|bc)
-		elif [[ "$DEFAULT_OUTPUTF" = "m4v" && ( "$currCod" = "PGS" || "$currCod" = "UTF-8" || "$currCod" = "MOV" || "$currCod" = "mov_text" || "$currCod" = "text" ) ]]; then
-			returnMap="$returnMap -map 0:$(echo $i-1$tempInc|bc)"
+			
+		#Output as m4v-format
+		elif [[ "$DEFAULT_OUTPUTF" = "m4v" && "$testSub" = "0" ]]; then
+			returnMap="$returnMap -map 0:$i"
 			returnFlag="$returnFlag -c:s:$subCount mov_text"
-			f_INFO "-Stream #0:$i ($currCod) -> #0:$newCount (mov_text)"
+			f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (mov_text)"
 			newCount=$(echo "$newCount+1"|bc)
 			subCount=$(echo "$subCount+1"|bc)	
 		fi
-	done
+	}
+	
 	echo "$returnMap $returnFlag"
 }
 
@@ -334,7 +361,7 @@ function showFrame {
 	echo -e "#  Convert with Pacman"
 	echo -e "#"
 	echo -e "#  Info"
-	echo -e "#    Pacman-Convert:\tVersion 1.3\t\t(built on Jul 14 2014)"
+	echo -e "#    Pacman-Convert:\tVersion 1.4\t\t(built on Jul 18 2014)"
 	echo -e "#    ffmpeg:\t\tVersion $(ffmpeg -version |head -n1 |cut -d' ' -f3)\t\t($(ffmpeg -version |sed -n 2p|cut -d'w' -f1| awk '{$1=$1}1'|sed 's/.\{9\}$//'))"
 	echo -e "#    x264:\t\tVersion $(x264 --version|head -n1| cut -d' ' -f2)\t($(x264 --version |sed -n 2p|cut -d',' -f1| awk '{$1=$1}1'))"
 
@@ -437,12 +464,15 @@ function performEncode {
 
 function checkSize {
 	filesize=$(wc -c "$1"|cut -d' ' -f2|sed 's/[^0-9]*//g')
-										
-	if [[ $(printf "%.0f" $filesize) -gt 5368709120 && "$DEFAULT_OUTPUTF" = "" ]]
-	then
-		DEFAULT_OUTPUTF="mkv"
-	else
-		DEFAULT_OUTPUTF="m4v"
+	
+	if [ "$DEFAULT_OUTPUTF" = "" ]
+	then			
+		if [ $(printf "%.0f" $filesize) -gt 5368709120 ]
+		then
+			DEFAULT_OUTPUTF="mkv"
+		else
+			DEFAULT_OUTPUTF="m4v"
+		fi
 	fi
 }
 
