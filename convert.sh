@@ -421,7 +421,7 @@ function showFrame {
 	echo -e "#  Convert with Pacman"
 	echo -e "#"
 	echo -e "#  Info"
-	echo -e "#    Pacman-Convert:\tVersion 1.5\t\t(built on Jul 18 2014)"
+	echo -e "#    Pacman-Convert:\tVersion 1.5\t\t(built on Jul 20 2014)"
 	echo -e "#    ffmpeg:\t\tVersion $(ffmpeg -version |head -n1 |cut -d' ' -f3)\t\t($(ffmpeg -version |sed -n 2p|cut -d'w' -f1| awk '{$1=$1}1'|sed 's/.\{9\}$//'))"
 	echo -e "#    x264:\t\tVersion $(x264 --version|head -n1| cut -d' ' -f2)\t($(x264 --version |sed -n 2p|cut -d',' -f1| awk '{$1=$1}1'))"
 
@@ -517,6 +517,7 @@ function checkDep {
 	tsubtitle2pgm=$(which subtitle2pgm)
 	tsrttool=$(which srttool)
 	ttesseract=$(which tesseract)
+	tjsawk=$(which jsawk)
 	
 	#brew	
 	if [ -z "$tbrew" ];
@@ -579,6 +580,14 @@ function checkDep {
 	then
 		f_ERROR "tesseract not found."
 		echo -e "tesseract not found.\n\nPlease visit http://code.google.com/p/tesseract-ocr/ for more information.\n\nOr install with \"brew install tesseract\""
+		exit 1
+	fi
+	
+	#jsawk
+	if [ -z "$tjsawk" ];
+	then
+		f_ERROR "jsawk not found."
+		echo -e "jsawk not found.\n\nPlease visit http://github.com/micha/jsawk for more information.\n\nOr install with \"brew install jsawk\""
 		exit 1
 	fi
 	
