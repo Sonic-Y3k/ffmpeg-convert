@@ -159,9 +159,11 @@ containsElement () {
 
 function checkFileCodecs {
 	returnMap="-loglevel panic -stats"
+	returnFi=""
 	subCount=0
 	audCount=0
 	newCount=0
+	inCount=0
 	
 	numberOfTracks=`echo "$(getAudioInfo -1)" |bc`
 
@@ -176,6 +178,7 @@ function checkFileCodecs {
 		testVid="$?"
 		if [ "$testVid" = "0" ];
 		then
+			inCount=$(echo "$inCount+1"|bc)
 			if [ $(printf "%d\n" $(getVidQuality)) -ge $(printf "%d\n" ${crfVal/./}) ]; then 
 				returnMap="$returnMap -map 0:$(echo $i|bc)"
 				returnFlag="-c:v:0 copy"
@@ -286,29 +289,86 @@ function checkFileCodecs {
 	#Subtitle Tracks
 	for (( i=0; i<$numberOfTracks; i++ )) {
 		currCod="$(getAudioCodec $i)"
-		subcodecs=("ass" "dvb_subtitle" "dvd_subtitle" "mov_text" "srt" "ssa" "subrip" "xsub" "pgssub")
+		#Can't convert PGP to mov_text -.-
+		subcodecs=("pgssub" "ass" "dvb_subtitle" "dvd_subtitle" "mov_text" "srt" "ssa" "subrip" "xsub")
 		containsElement "$currCod" "${subcodecs[@]}"
 		testSub="$?"
 		
-		#Output as m4v-format
+		#Output as mkv-format
 		if [[ "$DEFAULT_OUTPUTF" = "mkv" && "$testSub" = "0" ]]; then
 			returnMap="$returnMap -map 0:$i"
 			returnFlag="$returnFlag -c:s:$subCount copy"
 			f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (copy)"
 			newCount=$(echo "$newCount+1"|bc)
 			subCount=$(echo "$subCount+1"|bc)
-			
+		
 		#Output as m4v-format
-		elif [[ "$DEFAULT_OUTPUTF" = "m4v" && "$testSub" = "0" ]]; then
+		elif [[ "$DEFAULT_OUTPUTF" = "m4v" && "$testSub" = "0" && "$currCod" != "pgssub" ]]; then
 			returnMap="$returnMap -map 0:$i"
 			returnFlag="$returnFlag -c:s:$subCount mov_text"
 			f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (mov_text)"
 			newCount=$(echo "$newCount+1"|bc)
 			subCount=$(echo "$subCount+1"|bc)	
+		
+		#Output as m4v-format with pgssub
+		elif [[ "$DEFAULT_OUTPUTF" = "m4v" && "$testSub" = "0" && "$currCod" == "pgssub" ]]; then
+			f_INFO "-Stream #$inCount:0 ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (mov_text)"
+			tempFi="$(ocrPGPSubtitle $i)"
+	
+			f_INFO "     - Transcoded to $(echo $tempFi|sed 's: -i ::g')"
+			if [ -n "$tempFi" ];
+			then
+				returnMap="$returnMap -map $inCount:0"
+				returnFlag="$returnFlag -c:s:$subCount mov_text -metadata:s:s:$subCount language=$(getAudioLanguage $i)"
+			
+ 				returnFi="$returnFi$tempFi"
+				newCount=$(echo "$newCount+1"|bc)
+				subCount=$(echo "$subCount+1"|bc)	
+				inCount=$(echo "$inCount+1"|bc)
+			fi
 		fi
 	}
 	
-	echo "$returnMap $returnFlag"
+	echo "$returnFi $returnMap $returnFlag"
+}
+
+function ocrPGPSubtitle() {
+	if [ -z "$1" ]; then
+		#You need to specify a Track#
+		exit 0
+	fi
+
+	rm -f /tmp/*.idx /tmp/*.sub /tmp/*.ps1 /tmp/*.srtx /tmp/*.sup /tmp/*.pgm /tmp/*.pgm.txt
+
+	f_INFO "   - Need to convert subtitle"
+	f_INFO "     - Running: mkvextract tracks \"$DEFAULT_PATH\" \"$1:/tmp/track$1.sup\""
+	mkvextract tracks "$DEFAULT_PATH" "$1:/tmp/track$1.sup" > /dev/null 2>&1
+	
+	f_INFO "     - Running: bdsup2sub++ -o \"/tmp/track$1.sub\" \"/tmp/track$1.sup\""
+	bdsup2sub++ -o "/tmp/track$1.sub" "/tmp/track$1.sup" > /dev/null 2>&1
+	
+	f_INFO "     - Running: tcextract -x ps1 -t sub -a 0x20 -i \"/tmp/track$1.sub\" > \"/tmp/track$1.ps1\""
+	tcextract -x ps1 -t sub -a 0x20 -i "/tmp/track$1.sub" > "/tmp/track$1.ps1"
+	
+	f_INFO "     - Running: subtitle2pgm -i \"/tmp/track$1.ps1\" -o \"/tmp/track$1-\" -P"
+	subtitle2pgm -i "/tmp/track$1.ps1" -o "/tmp/track$1-" -P > /dev/null 2>&1
+	
+	f_INFO "     - Running: tesseract for $(ls /tmp | grep '.pgm'| wc -l| sed 's: ::g') files"
+	for f in /tmp/track"$1"-*.pgm ;  do tesseract "$f" "$f" > /dev/null 2>&1 ; done
+	
+	if [[ $(ls /tmp | grep ".pgm"| wc -l| sed 's: ::g') -gt 0 ]];
+	then
+		f_INFO "     - Running: srttool -s -i \"/tmp/track$1-.srtx\" -o \"./file$1.srt\""
+		srttool -s -i "/tmp/track$1-.srtx" -o "./file$1.srt" > /dev/null 2>&1
+	
+		ret=" -i ./file$1.srt"
+	else
+		f_WARNING "    - Skipping this subtitle. No text found."
+		ret=""
+	fi
+	
+	rm -f /tmp/*.idx /tmp/*.sub /tmp/*.ps1 /tmp/*.srtx /tmp/*.sup /tmp/*.pgm /tmp/*.pgm.txt
+	echo "$ret"
 }
 
 function show_time () {
@@ -433,6 +493,7 @@ function checkSanity {
 		if [ $leDif -lt 250 ]; then
 			#Differs by max. 250 ms... Okay delete Original.
 			rm "$DEFAULT_PATH"
+			rm -f ./*.srt
 			f_INFO "Passed sanity check. Deleting original video."
 		else
 			f_WARNING "Failed sanity check (diff $leOne, $leTwo = $leDif < 250). Keep all files."
@@ -445,7 +506,86 @@ function calculateTotalVideos {
 	dictTotal=`find -E "$dictPath" -follow -regex '.*\.('$searchExt')' 2>&1|grep -v 'Permission denied'|grep -v '/output/'|wc -l|sed 's/[^0-9]*//g'`
 }
 
+function checkDep {
+	tbrew=$(which brew)
+	tffmpeg=$(which ffmpeg)
+	tmediainfo=$(which mediainfo)
+	tmplayer=$(which mplayer)
+	tmkvextract=$(which mkvextract)
+	tbdsup2sub=$(which bdsup2sub++)
+	ttcextract=$(which tcextract)
+	tsubtitle2pgm=$(which subtitle2pgm)
+	tsrttool=$(which srttool)
+	ttesseract=$(which tesseract)
+	
+	#brew	
+	if [ -z "$tbrew" ];
+	then
+		f_ERROR "brew not found."
+		echo -e "Homebrew not found.\n\nPlease visit http://brew.sh/ for more information."
+		exit 1
+	fi
+
+	#ffmpeg
+	if [ -z "$tffmpeg" ];
+	then
+		f_ERROR "ffmpeg not found."
+		echo -e "ffmpeg not found.\n\nPlease visit https://www.ffmpeg.org/ for more information.\n\nOr install with \"brew install ffmpeg\""
+		exit 1
+	fi
+	
+	#mediainfo 
+	if [ -z "$tmediainfo" ];
+	then
+		f_ERROR "mediainfo not found."
+		echo -e "mediainfo not found.\n\nPlease visit http://mediaarea.net/de/MediaInfo for more information.\n\nOr install with \"brew install mediainfo\""
+		exit 1
+	fi
+
+	#mplayer
+	if [ -z "$tmplayer" ];
+	then
+		f_ERROR "mplayer not found."
+		echo -e "mplayer not found.\n\nPlease visit http://mplayerhq.hu/ for more information.\n\nOr install with \"brew install mplayer\""
+		exit 1
+	fi
+	
+	#mkvextract
+	if [ -z "$tmkvextract" ];
+	then
+		f_ERROR "mkvtoolnix not found."
+		echo -e "mkvtoolnix not found.\n\nPlease visit http://bunkus.org/videotools/mkvtoolnix/ for more information.\n\nOr install with \"brew install mkvtoolnix\""
+		exit 1
+	fi
+	
+	#bdsup2sub++
+	if [ -z "$tbdsup2sub" ];
+	then
+		f_ERROR "bdsup2sub++ not found."
+		echo -e "bdsup2sub++ not found.\n\nPlease visit http://forum.doom9.org/showthread.php?p=1613303 for more information.\n\nOr install with \"brew install https://raw.githubusercontent.com/Sonic-Y3k/homebrew/master/bdsup2sub++.rb\""
+		exit 1
+	fi
+	
+	#tcextract
+	if [ -z "$ttcextract" ] || [ -z "$tsubtitle2pgm" ] || [ -z "$tsrttool" ]
+	then
+		f_ERROR "transcode not found."
+		echo -e "transcode not found.\n\nPlease visit http://www.linuxfromscratch.org/blfs/view/svn/multimedia/transcode.html for more information.\n\nOr install with \"brew install https://raw.githubusercontent.com/Sonic-Y3k/homebrew/master/transcode.rb\""
+		exit 1
+	fi
+	
+	#tesseract
+	if [ -z "$ttesseract" ];
+	then
+		f_ERROR "tesseract not found."
+		echo -e "tesseract not found.\n\nPlease visit http://code.google.com/p/tesseract-ocr/ for more information.\n\nOr install with \"brew install tesseract\""
+		exit 1
+	fi
+	
+}
+
 function performEncode {
+	checkDep
 	mkdir -p "$dictPath/output"
 		calculateTotalVideos
 		
@@ -556,7 +696,7 @@ function startEncode {
 		f_INFO "Cropping Video to: $(echo $cropVal|sed 's/-filter:v crop=//g')"
 	fi
 	
-	f_INFO "ffmpeg-command:\n\nffmpeg -y -vstats_file /tmp/vstats -i \"$DEFAULT_PATH\" $fiCod $cropVal \"$dictPath/output/$filename.$DEFAULT_OUTPUTF\"\n"
+	f_INFO "ffmpeg-command:\n\nffmpeg -y -sub_charenc UTF-8 -vstats_file /tmp/vstats -i \"$DEFAULT_PATH\" $fiCod $cropVal \"$dictPath/output/$filename.$DEFAULT_OUTPUTF\"\n"
 	
 	#exit 0
 	
