@@ -78,12 +78,12 @@ function getAudioInfo {
 	else
 		if [[ $(cat ffprobe.txt |grep "language") = "" ]];
 		then
-			myl="{a:this.index,b:this.tags.LANGUAGE,c:this.codec_name,d:this.channels}"
+			myl="{a:this.index,b:this.codec_name,c:this.channels,d:this.tags.LANGUAGE}"
 		else
-			myl="{a:this.index,b:this.tags.language,c:this.codec_name,d:this.channels}"
+			myl="{a:this.index,b:this.codec_name,c:this.channels,d:this.tags.language}"
 		fi
 	
-		for info in `cat ffprobe.txt |jsawk 'return this.streams' |jsawk 'return '$myl'' | jsawk -n 'out (this)' | sed 's/\"//g' | sed 's/{a://g' | sed 's/b://g' | sed 's/c://g' | sed 's/d://g' | sed 's/}//g'`
+		for info in `cat ffprobe.txt |jsawk 'return this.streams' |jsawk "return $myl" | jsawk -n "out (this)" | sed 's/\"//g' | sed 's/{a://g' | sed 's/b://g' | sed 's/c://g' | sed 's/d://g' | sed 's/}//g'`
 		do
 			if [ $(echo $info|cut -d',' -f1) = "$1" ]; then
 				ret="$info"
@@ -108,7 +108,7 @@ function getAudioLanguage {
 		exit 0
 	fi
 	
-	ret=$(echo $(getAudioInfo $1)|cut -d',' -f2)
+	ret=$(echo $(getAudioInfo $1)|cut -d',' -f4)
 	
 	if [ "$ret" != "" ];
 	then
@@ -124,7 +124,7 @@ function getAudioCodec {
 		exit 0
 	fi
 	
-	echo $(echo $(getAudioInfo $1)|cut -d',' -f3)
+	echo $(echo $(getAudioInfo $1)|cut -d',' -f2)
 }
 
 function getAudioChannels {
@@ -132,7 +132,7 @@ function getAudioChannels {
 		#You need to specify a Track#
 		exit 0
 	fi
-	echo $(echo $(getAudioInfo $1)|cut -d',' -f4)
+	echo $(echo $(getAudioInfo $1)|cut -d',' -f3)
 	
 }
 
@@ -171,6 +171,7 @@ function checkFileCodecs {
 	f_INFO "Video:"
 	#Video Tracks
 	for (( i=0; i<$numberOfTracks; i++ )) {
+		
 		currCod="$(getAudioCodec $i)"
 		
 		vidcodecs=("hevc" "amv" "asv1" "asv2" "avrp" "avui" "ayuv" "bmp" "cinepak" "cljr" "dnxhd" "dpx" "dvvideo" "ffv1" "ffvhuff" "flashsv" "flashsv2" "flv1" "gif" "h261" "h263" "h263p" "h264" "huffyuv" "jpeg2000" "jpegls" "mjpeg" "mpeg1video" "mpeg2video" "mpeg4" "msmpeg4v2" "msmpeg4v3" "msvideo1" "pam" "pbm" "pcx" "pgm" "pgmyuv" "png" "ppm" "prores" "qtrle" "r10k" "r210" "rawvideo" "roq" "rv10" "rv20" "sgi" "snow" "sunrast" "svq1" "targa" "tiff" "utvideo" "v210" "v308" "v408" "v410" "wmv1" "wmv2" "xbm" "xface" "xwd" "y41p" "yuv4" "zlib")
