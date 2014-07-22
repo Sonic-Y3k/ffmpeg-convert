@@ -6,7 +6,7 @@ crfVal="18.0"
 
 dictTotal=1
 dictProgress=0
-DEFAULT_OUTPUTF="m4v"
+DEFAULT_OUTPUTF=""
 LOGFILE="$dictPath/log.$(date +%s).log"
 
 f_LOG() {
@@ -112,7 +112,7 @@ function getAudioLanguage {
 	
 	if [ "$ret" != "" ];
 	then
-		echo "$ret"
+		echo $(langFix "$ret")
 	else
 		echo "und"
 	fi
@@ -204,8 +204,12 @@ function checkFileCodecs {
 	for (( i=0; i<$numberOfTracks; i++ )) {
 		currCod="$(getAudioCodec $i)"
 		
+		audcodecs=("dca" "real_144" "libmp3lame" "mp2fixed" "g726" "g722" "ac3_fixed" "libfaac" "adpcm_adx" "adpcm_g722" "adpcm_g726" "adpcm_ima_qt" "adpcm_ima_wav" "adpcm_ms" "adpcm_swf" "adpcm_yamaha" "alac" "comfortnoise" "dts" "eac3" "flac" "g723_1" "mp2" "mp3" "nellymoser" "pcm_alaw" "pcm_f32be" "pcm_f32le" "pcm_f64be" "pcm_f64le" "pcm_mulaw" "pcm_s16be" "pcm_s16be_planar" "pcm_s16le" "pcm_s16le_planar" "pcm_s24be" "pcm_s24daud" "pcm_s24le" "pcm_s24le_planar" "pcm_s32be" "pcm_s32le" "pcm_s32le_planar" "pcm_s8" "pcm_s8_planar" "pcm_u16be" "pcm_u16le" "pcm_u24be" "pcm_u24le" "pcm_u32be" "pcm_u32le" "pcm_u8" "ra_144" "roq_dpcm" "s302m" "sonic" "tta" "vorbis" "wavpack" "wmav1" "wmav2")
+		containsElement "$currCod" "${audcodecs[@]}"
+		testAud="$?"
+		
 		#Output as mkv-format - just copy audio...
-		if [[ "$DEFAULT_OUTPUTF" == "mkv" && ( "$currCod" = "dca" || "$currCod" = "ac3" ) ]]; then
+		if [[ $DEFAULT_OUTPUTF = *"mkv"* && ( $currCod = *"ac3"* || $currCod = *"dca"* ) ]]; then
 			returnMap="$returnMap -map 0:$i"
 			returnFlag="$returnFlag -c:a:$audCount copy"
 			audCount=$(echo "$audCount+1"|bc)
@@ -241,21 +245,15 @@ function checkFileCodecs {
 				newCount=$(echo "$newCount+1"|bc)
 			fi
 		
-			
 		#Output as m4v-format with DTS,MP3, ...
-		
-		audcodecs=("dca" "real_144" "libmp3lame" "mp2fixed" "g726" "g722" "ac3_fixed" "libfaac" "adpcm_adx" "adpcm_g722" "adpcm_g726" "adpcm_ima_qt" "adpcm_ima_wav" "adpcm_ms" "adpcm_swf" "adpcm_yamaha" "alac" "comfortnoise" "dts" "eac3" "flac" "g723_1" "mp2" "mp3" "nellymoser" "pcm_alaw" "pcm_f32be" "pcm_f32le" "pcm_f64be" "pcm_f64le" "pcm_mulaw" "pcm_s16be" "pcm_s16be_planar" "pcm_s16le" "pcm_s16le_planar" "pcm_s24be" "pcm_s24daud" "pcm_s24le" "pcm_s24le_planar" "pcm_s32be" "pcm_s32le" "pcm_s32le_planar" "pcm_s8" "pcm_s8_planar" "pcm_u16be" "pcm_u16le" "pcm_u24be" "pcm_u24le" "pcm_u32be" "pcm_u32le" "pcm_u8" "ra_144" "roq_dpcm" "s302m" "sonic" "tta" "vorbis" "wavpack" "wmav1" "wmav2")
-		containsElement "$currCod" "${audcodecs[@]}"
-		testAud="$?"
-		
 		elif [[ "$DEFAULT_OUTPUTF" = "m4v" && "$testAud" = "0" ]]; then
 			returnMap="$returnMap -map 0:$i -map 0:$i"
-			returnFlag="$returnFlag -c:a:$audCount libfaac -b:a:$audCount 320k -ac:"$(echo "$audCount+1"|bc)" 2"
+			returnFlag="$returnFlag -c:a:$audCount libfaac -b:a:$audCount 320k -ac:"$(echo "$audCount+1"|bc)" 2 -metadata:s:a:$audCount language=$(getAudioLanguage $i)"
 			f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (libfaac)"
 			newCount=$(echo "$newCount+1"|bc)
 			audCount=$(echo "$audCount+1"|bc)
 			audChannels=$(getAudioChannels $i)
-			returnFlag="$returnFlag -c:a:$audCount ac3 -b:a:$audCount 640k -ac:"$(echo "$audCount+1"|bc)" "$((audChannels>1?audChannels:2))" "
+			returnFlag="$returnFlag -c:a:$audCount ac3 -b:a:$audCount 640k -ac:"$(echo "$audCount+1"|bc)" "$((audChannels>1?audChannels:2))" -metadata:s:a:$audCount language=$(getAudioLanguage $i)"
 			f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (ac3)"
 			newCount=$(echo "$newCount+1"|bc)
 			audCount=$(echo "$audCount+1"|bc)
@@ -274,17 +272,17 @@ function checkFileCodecs {
 			#No already converted audio found
 			if [ $doubleLang = false ]; then
 				returnMap="$returnMap -map 0:$i -map 0:$i"
-				returnFlag="$returnFlag -c:a:$audCount copy"
+				returnFlag="$returnFlag -c:a:$audCount copy -metadata:s:a:$audCount language=$(getAudioLanguage $i)"
 				f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (copy)"
 				newCount=$(echo "$newCount+1"|bc)
 				audCount=$(echo "$audCount+1"|bc)
-				returnFlag="$returnFlag -c:a:$audCount ac3 -b:a:$audCount 640k -ac:$audCount $(getAudioChannels $i)"
+				returnFlag="$returnFlag -c:a:$audCount ac3 -b:a:$audCount 640k -ac:$audCount $(getAudioChannels $i) -metadata:s:a:$audCount language=$(getAudioLanguage $i)"
 				f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (ac3)"
 				newCount=$(echo "$newCount+1"|bc)
 				audCount=$(echo "$audCount+1"|bc)
 			else
 				returnMap="$returnMap -map 0:$i"
-				returnFlag="$returnFlag -c:a:$audCount copy"
+				returnFlag="$returnFlag -c:a:$audCount copy -metadata:s:a:$audCount language=$(getAudioLanguage $i)"
 				f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (copy)"
 				newCount=$(echo "$newCount+1"|bc)
 				audCount=$(echo "$audCount+1"|bc)
@@ -292,9 +290,9 @@ function checkFileCodecs {
 		fi
 	}
 	
-	if [[ "$returnFlag" != *c:a:?* ]];
+	if [[ "$returnFlag" != *c:a:0* ]];
 	then
-		f_ERROR "No video track found. Stopping here."
+		f_ERROR "No audio track found. Stopping here."
 		exit 1
 	fi
 	
@@ -302,7 +300,8 @@ function checkFileCodecs {
 	#Subtitle Tracks
 	for (( i=0; i<$numberOfTracks; i++ )) {
 		currCod="$(getAudioCodec $i)"
-		#Can't convert PGP to mov_text -.-
+		
+		#PGP needs conversion...
 		subcodecs=("pgssub" "ass" "dvb_subtitle" "dvd_subtitle" "mov_text" "srt" "ssa" "subrip" "xsub")
 		containsElement "$currCod" "${subcodecs[@]}"
 		testSub="$?"
@@ -330,7 +329,7 @@ function checkFileCodecs {
 		
 			if [ -n "$tempFi" ] && [ "$tempFi" != " -i " ];
 			then
-				f_INFO "     - Transcoded to $(echo $tempFi|sed 's: -i ::g')"
+				f_INFO "     - Transcoded to $(echo $tempFi|sed 's:-i ::g')"
 				returnMap="$returnMap -map $inCount:0"
 				returnFlag="$returnFlag -c:s:$subCount mov_text -metadata:s:s:$subCount language=$(getAudioLanguage $i)"
 			
@@ -345,20 +344,36 @@ function checkFileCodecs {
 	echo "$returnFi $returnMap $returnFlag"
 }
 
-function checkForCrash() {
-	while [ $(ps aux | grep $1 | grep -v grep |wc -l) -gt 0 ]; do
-		fileCount=`ls -l $2| wc -l| sed 's: ::g'`
-		
-		if [ $fileCount -gt 3000 ];
-		then
-			f_ERROR "    - subtitle2pgm crashed. Retrying."
-			kill "$1"
-			rm -rf "$2"
-			
-			#ocrPGPSubtitle $3
-		fi
-		sleep 0.1
-	done
+function langFix() {
+	#Tanks to ISO 639-2 ...
+	ret="$1"
+	if [[ $1 == *"alb"* ]]; then ret="sqi"; fi
+	if [[ $1 == *"arm"* ]]; then ret="hye"; fi
+	if [[ $1 == *"baq"* ]]; then ret="eus"; fi
+	if [[ $1 == *"tib"* ]]; then ret="bod"; fi
+	if [[ $1 == *"bur"* ]]; then ret="mya"; fi
+	if [[ $1 == *"cze"* ]]; then ret="ces"; fi
+	if [[ $1 == *"chi"* ]]; then ret="zho"; fi
+	if [[ $1 == *"wel"* ]]; then ret="cym"; fi
+	if [[ $1 == *"ger"* ]]; then ret="deu"; fi
+	if [[ $1 == *"dut"* ]]; then ret="nld"; fi
+	if [[ $1 == *"gre"* ]]; then ret="ell"; fi
+	if [[ $1 == *"baq"* ]]; then ret="eus"; fi	
+	if [[ $1 == *"per"* ]]; then ret="fas"; fi	
+	if [[ $1 == *"fre"* ]]; then ret="fra"; fi	
+	if [[ $1 == *"geo"* ]]; then ret="kat"; fi	
+	if [[ $1 == *"ice"* ]]; then ret="isl"; fi	
+	if [[ $1 == *"mac"* ]]; then ret="mkd"; fi	
+	if [[ $1 == *"mao"* ]]; then ret="mri"; fi	
+	if [[ $1 == *"may"* ]]; then ret="msa"; fi	
+	if [[ $1 == *"bur"* ]]; then ret="mya"; fi	
+	if [[ $1 == *"per"* ]]; then ret="fas"; fi	
+	if [[ $1 == *"rum"* ]]; then ret="ron"; fi	
+	if [[ $1 == *"slo"* ]]; then ret="slk"; fi	
+	if [[ $1 == *"tib"* ]]; then ret="bod"; fi	
+	if [[ $1 == *"wel"* ]]; then ret="cym"; fi	
+	if [[ $1 == *"chi"* ]]; then ret="zho"; fi	
+	echo "$ret"
 }
 
 function ocrPGPSubtitle() {
@@ -378,28 +393,17 @@ function ocrPGPSubtitle() {
 	f_INFO "     - Running: bdsup2sub++ -o \"$mytmpdir/track$1.sub\" \"$mytmpdir/track$1.sup\""
 	bdsup2sub++ -o "$mytmpdir/track$1.sub" "$mytmpdir/track$1.sup" > /dev/null 2>&1
 	
-	f_INFO "     - Running: tcextract -x ps1 -t sub -a 0x20 -i \"$mytmpdir/track$1.sub\" > \"$mytmpdir/track$1.ps1\""
-	tcextract -x ps1 -t sub -a 0x20 -i "$mytmpdir/track$1.sub" > "$mytmpdir/track$1.ps1"
+	f_INFO "     - Running: vobsub2srt --tesseract-lang $(getAudioLanguage $i) \"$mytmpdir/track$1\""
+	#vobsub2srt --tesseract-lang eng --tesseract-data /usr/local/share/tessdata "$mytmpdir/track$1"| while IFS= read -r -d $'\0' line; do
+	vobsub2srt --tesseract-lang "$(getAudioLanguage $i)" "$mytmpdir/track$1" 2>&1| while IFS= read -r -d $'\0' line; do
+		f_ERROR "    - $line"
+	done
 	
-	f_INFO "     - Running: subtitle2pgm -i \"$mytmpdir/track$1.ps1\" -o \"$mytmpdir/track$1-\" -P"
-	
-	subtitle2pgm sometimes runs into infinity-loops, therefore we need to check how many pictures it extracted.
-	subtitle2pgm -i "$mytmpdir/track$1.ps1" -o "$mytmpdir/track$1-" -P > /dev/null 2>&1 & PID=$! &&
-	checkForCrash "$PID" "$mytmpdir" "$1"
-	
-	counter=$(ls $mytmpdir | grep '.pgm'| wc -l| sed 's: ::g')
-	
-	f_INFO "     - Running: tesseract for $counter files"
-	for f in "$mytmpdir"/track"$1"-*.pgm ;  do tesseract "$f" "$f" > /dev/null 2>&1 ; done
-	
-	if [[ $(ls "$mytmpdir" | grep ".pgm"| wc -l| sed 's: ::g') -gt 0 ]];
+	if [ -s "$mytmpdir/track$1.srt" ]
 	then
-		f_INFO "     - Running: srttool -s -i \"$mytmpdir/track$1-.srtx\" -o \"./file$1.srt\""
-		srttool -s -i "$mytmpdir/track$1-.srtx" -o "./file$1.srt" > /dev/null 2>&1
-	
+		cp "$mytmpdir/track$1.srt" "./track$1.srt"
 		ret=" -i ./file$1.srt"
 	else
-		f_WARNING "    - Skipping this subtitle. No text found."
 		ret=""
 	fi
 	
@@ -555,6 +559,7 @@ function checkDep {
 	tsrttool=$(which srttool)
 	ttesseract=$(which tesseract)
 	tjsawk=$(which jsawk)
+	tvobsub2srt=$(which vobsub2srt)
 	
 	#brew	
 	if [ -z "$tbrew" ];
@@ -616,7 +621,7 @@ function checkDep {
 	if [ -z "$ttesseract" ];
 	then
 		f_ERROR "tesseract not found."
-		echo -e "tesseract not found.\n\nPlease visit http://code.google.com/p/tesseract-ocr/ for more information.\n\nOr install with \"brew install tesseract\""
+		echo -e "tesseract not found.\n\nPlease visit http://code.google.com/p/tesseract-ocr/ for more information.\n\nOr install with \"brew install tesseract --all-languages\""
 		exit 1
 	fi
 	
@@ -625,6 +630,14 @@ function checkDep {
 	then
 		f_ERROR "jsawk not found."
 		echo -e "jsawk not found.\n\nPlease visit http://github.com/micha/jsawk for more information.\n\nOr install with \"brew install jsawk\""
+		exit 1
+	fi
+	
+	#vobsub2srt
+	if [ -z "vobsub2srt" ];
+	then
+		f_ERROR "vobsub2srt not found."
+		echo -e "vobsub2srt not found.\n\nPlease visit https://github.com/ruediger/VobSub2SRT for more information.\n\nOr install with \"brew install https://raw.githubusercontent.com/ruediger/VobSub2SRT/master/packaging/vobsub2srt.rb --HEAD vobsub2srt\""
 		exit 1
 	fi
 	
@@ -746,7 +759,7 @@ function startEncode {
 	
 	f_INFO "ffmpeg-command:\n\nffmpeg -y -sub_charenc UTF-8 -vstats_file /tmp/vstats -i \"$DEFAULT_PATH\" $fiCod $cropVal \"$dictPath/output/$filename.$DEFAULT_OUTPUTF\"\n"
 	
-	exit 0
+	#exit 0
 	
 	nice -n 15 ffmpeg -y -vstats_file /tmp/vstats -i "$DEFAULT_PATH" $fiCod $cropVal "$dictPath/output/$filename.$DEFAULT_OUTPUTF" 2>/dev/null & 
         PID=$! && 
