@@ -211,7 +211,7 @@ function checkFileCodecs {
 		#Output as mkv-format - just copy audio...
 		if [[ $DEFAULT_OUTPUTF = *"mkv"* && ( $currCod = *"ac3"* || $currCod = *"dca"* ) ]]; then
 			returnMap="$returnMap -map 0:$i"
-			returnFlag="$returnFlag -c:a:$audCount copy"
+			returnFlag="$returnFlag -c:a:$audCount copy -metadata:s:a:$audCount language=$(getAudioLanguage $i)"
 			audCount=$(echo "$audCount+1"|bc)
 			f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (copy)"
 		
@@ -229,17 +229,17 @@ function checkFileCodecs {
 			#No already converted audio found
 			if [ $doubleLang = false ]; then
 				returnMap="$returnMap -map 0:$i -map 0:$i"
-				returnFlag="$returnFlag -c:a:$audCount libfaac -b:a:$audCount 320k -ac:"$(echo "$audCount+1"|bc)" 2"
+				returnFlag="$returnFlag -c:a:$audCount libfaac -b:a:$audCount 320k -ac:"$(echo "$audCount+1"|bc)" 2 -metadata:s:a:$audCount language=$(getAudioLanguage $i)"
 				f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (libfaac)"
 				newCount=$(echo "$newCount+1"|bc)
 				audCount=$(echo "$audCount+1"|bc)
-				returnFlag="$returnFlag -c:a:$audCount copy"
+				returnFlag="$returnFlag -c:a:$audCount copy -metadata:s:a:$audCount language=$(getAudioLanguage $i) -metadata:s:a:$audCount language=$(getAudioLanguage $i)"
 				f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (copy)"
 				audCount=$(echo "$audCount+1"|bc)
 				newCount=$(echo "$newCount+1"|bc)
 			else
 				returnMap="$returnMap -map 0:$i"
-				returnFlag="$returnFlag -c:a:$audCount copy"
+				returnFlag="$returnFlag -c:a:$audCount copy -metadata:s:a:$audCount language=$(getAudioLanguage $i) -metadata:s:a:$audCount language=$(getAudioLanguage $i)"
 				f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (copy)"
 				audCount=$(echo "$audCount+1"|bc)
 				newCount=$(echo "$newCount+1"|bc)
@@ -272,7 +272,7 @@ function checkFileCodecs {
 			#No already converted audio found
 			if [ $doubleLang = false ]; then
 				returnMap="$returnMap -map 0:$i -map 0:$i"
-				returnFlag="$returnFlag -c:a:$audCount copy -metadata:s:a:$audCount language=$(getAudioLanguage $i)"
+				returnFlag="$returnFlag -c:a:$audCount copy -metadata:s:a:$audCount language=$(getAudioLanguage $i) -metadata:s:a:$audCount language=$(getAudioLanguage $i)"
 				f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (copy)"
 				newCount=$(echo "$newCount+1"|bc)
 				audCount=$(echo "$audCount+1"|bc)
@@ -282,7 +282,7 @@ function checkFileCodecs {
 				audCount=$(echo "$audCount+1"|bc)
 			else
 				returnMap="$returnMap -map 0:$i"
-				returnFlag="$returnFlag -c:a:$audCount copy -metadata:s:a:$audCount language=$(getAudioLanguage $i)"
+				returnFlag="$returnFlag -c:a:$audCount copy -metadata:s:a:$audCount language=$(getAudioLanguage $i) -metadata:s:a:$audCount language=$(getAudioLanguage $i)"
 				f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (copy)"
 				newCount=$(echo "$newCount+1"|bc)
 				audCount=$(echo "$audCount+1"|bc)
