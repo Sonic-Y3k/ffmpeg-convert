@@ -6,7 +6,7 @@ crfVal="18.0"
 
 dictTotal=1
 dictProgress=0
-DEFAULT_OUTPUTF=""
+DEFAULT_OUTPUTF="m4v"
 LOGFILE="$dictPath/log.$(date +%s).log"
 
 f_LOG() {
@@ -78,9 +78,9 @@ function getAudioInfo {
 	else
 		if [[ $(cat ffprobe.txt |grep "language") = "" ]];
 		then
-			myl="{a:this.index,b:this.codec_name,c:this.channels,d:this.tags.LANGUAGE}"
+			myl="{a:this.index,b:this.codec_name,c:this.tags.LANGUAGE,d:this.channels}"
 		else
-			myl="{a:this.index,b:this.codec_name,c:this.channels,d:this.tags.language}"
+			myl="{a:this.index,b:this.codec_name,c:this.tags.language,d:this.channels}"
 		fi
 	
 		for info in `cat ffprobe.txt |jsawk 'return this.streams' |jsawk "return $myl" | jsawk -n "out (this)" | sed 's/\"//g' | sed 's/{a://g' | sed 's/b://g' | sed 's/c://g' | sed 's/d://g' | sed 's/}//g'`
@@ -108,7 +108,7 @@ function getAudioLanguage {
 		exit 0
 	fi
 	
-	ret=$(echo $(getAudioInfo $1)|cut -d',' -f4)
+	ret=$(echo $(getAudioInfo $1)|cut -d',' -f3)
 	
 	if [ "$ret" != "" ];
 	then
@@ -132,7 +132,7 @@ function getAudioChannels {
 		#You need to specify a Track#
 		exit 0
 	fi
-	echo $(echo $(getAudioInfo $1)|cut -d',' -f3)
+	echo $(echo $(getAudioInfo $1)|cut -d',' -f4)
 	
 }
 
@@ -174,7 +174,7 @@ function checkFileCodecs {
 		
 		currCod="$(getAudioCodec $i)"
 		
-		vidcodecs=("hevc" "amv" "asv1" "asv2" "avrp" "avui" "ayuv" "bmp" "cinepak" "cljr" "dnxhd" "dpx" "dvvideo" "ffv1" "ffvhuff" "flashsv" "flashsv2" "flv1" "gif" "h261" "h263" "h263p" "h264" "huffyuv" "jpeg2000" "jpegls" "mjpeg" "mpeg1video" "mpeg2video" "mpeg4" "msmpeg4v2" "msmpeg4v3" "msvideo1" "pam" "pbm" "pcx" "pgm" "pgmyuv" "png" "ppm" "prores" "qtrle" "r10k" "r210" "rawvideo" "roq" "rv10" "rv20" "sgi" "snow" "sunrast" "svq1" "targa" "tiff" "utvideo" "v210" "v308" "v408" "v410" "wmv1" "wmv2" "xbm" "xface" "xwd" "y41p" "yuv4" "zlib")
+		vidcodecs=("vc1" "hevc" "amv" "asv1" "asv2" "avrp" "avui" "ayuv" "bmp" "cinepak" "cljr" "dnxhd" "dpx" "dvvideo" "ffv1" "ffvhuff" "flashsv" "flashsv2" "flv1" "gif" "h261" "h263" "h263p" "h264" "huffyuv" "jpeg2000" "jpegls" "mjpeg" "mpeg1video" "mpeg2video" "mpeg4" "msmpeg4v2" "msmpeg4v3" "msvideo1" "pam" "pbm" "pcx" "pgm" "pgmyuv" "png" "ppm" "prores" "qtrle" "r10k" "r210" "rawvideo" "roq" "rv10" "rv20" "sgi" "snow" "sunrast" "svq1" "targa" "tiff" "utvideo" "v210" "v308" "v408" "v410" "wmv1" "wmv2" "xbm" "xface" "xwd" "y41p" "yuv4" "zlib")
 		containsElement "$currCod" "${vidcodecs[@]}"
 		testVid="$?"
 		if [ "$testVid" = "0" ];
@@ -193,14 +193,16 @@ function checkFileCodecs {
 		fi
 	}
 
+	if [[ "$returnFlag" != *c:v:?* ]];
+	then
+		f_ERROR "No video track found. Stopping here."
+		exit 1
+	fi
+	
 	f_INFO "Audio:"
 	#Audio Tracks
 	for (( i=0; i<$numberOfTracks; i++ )) {
 		currCod="$(getAudioCodec $i)"
-		
-		audcodecs=("dca" "real_144" "libmp3lame" "mp2fixed" "g726" "g722" "ac3_fixed" "libfaac" "adpcm_adx" "adpcm_g722" "adpcm_g726" "adpcm_ima_qt" "adpcm_ima_wav" "adpcm_ms" "adpcm_swf" "adpcm_yamaha" "alac" "comfortnoise" "dts" "eac3" "flac" "g723_1" "mp2" "mp3" "nellymoser" "pcm_alaw" "pcm_f32be" "pcm_f32le" "pcm_f64be" "pcm_f64le" "pcm_mulaw" "pcm_s16be" "pcm_s16be_planar" "pcm_s16le" "pcm_s16le_planar" "pcm_s24be" "pcm_s24daud" "pcm_s24le" "pcm_s24le_planar" "pcm_s32be" "pcm_s32le" "pcm_s32le_planar" "pcm_s8" "pcm_s8_planar" "pcm_u16be" "pcm_u16le" "pcm_u24be" "pcm_u24le" "pcm_u32be" "pcm_u32le" "pcm_u8" "ra_144" "roq_dpcm" "s302m" "sonic" "tta" "vorbis" "wavpack" "wmav1" "wmav2")
-		containsElement "$currCod" "${audcodecs[@]}"
-		testAud="$?"
 		
 		#Output as mkv-format - just copy audio...
 		if [[ "$DEFAULT_OUTPUTF" == "mkv" && ( "$currCod" = "dca" || "$currCod" = "ac3" ) ]]; then
@@ -241,6 +243,10 @@ function checkFileCodecs {
 		
 			
 		#Output as m4v-format with DTS,MP3, ...
+		
+		audcodecs=("dca" "real_144" "libmp3lame" "mp2fixed" "g726" "g722" "ac3_fixed" "libfaac" "adpcm_adx" "adpcm_g722" "adpcm_g726" "adpcm_ima_qt" "adpcm_ima_wav" "adpcm_ms" "adpcm_swf" "adpcm_yamaha" "alac" "comfortnoise" "dts" "eac3" "flac" "g723_1" "mp2" "mp3" "nellymoser" "pcm_alaw" "pcm_f32be" "pcm_f32le" "pcm_f64be" "pcm_f64le" "pcm_mulaw" "pcm_s16be" "pcm_s16be_planar" "pcm_s16le" "pcm_s16le_planar" "pcm_s24be" "pcm_s24daud" "pcm_s24le" "pcm_s24le_planar" "pcm_s32be" "pcm_s32le" "pcm_s32le_planar" "pcm_s8" "pcm_s8_planar" "pcm_u16be" "pcm_u16le" "pcm_u24be" "pcm_u24le" "pcm_u32be" "pcm_u32le" "pcm_u8" "ra_144" "roq_dpcm" "s302m" "sonic" "tta" "vorbis" "wavpack" "wmav1" "wmav2")
+		containsElement "$currCod" "${audcodecs[@]}"
+		testAud="$?"
 		
 		elif [[ "$DEFAULT_OUTPUTF" = "m4v" && "$testAud" = "0" ]]; then
 			returnMap="$returnMap -map 0:$i -map 0:$i"
@@ -286,6 +292,12 @@ function checkFileCodecs {
 		fi
 	}
 	
+	if [[ "$returnFlag" != *c:a:?* ]];
+	then
+		f_ERROR "No video track found. Stopping here."
+		exit 1
+	fi
+	
 	f_INFO "Subtitles:"
 	#Subtitle Tracks
 	for (( i=0; i<$numberOfTracks; i++ )) {
@@ -315,10 +327,10 @@ function checkFileCodecs {
 		elif [[ "$DEFAULT_OUTPUTF" = "m4v" && "$testSub" = "0" && "$currCod" == "pgssub" ]]; then
 			f_INFO "-Stream #$inCount:0 ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (mov_text)"
 			tempFi="$(ocrPGPSubtitle $i)"
-	
-			f_INFO "     - Transcoded to $(echo $tempFi|sed 's: -i ::g')"
-			if [ -n "$tempFi" ];
+		
+			if [ -n "$tempFi" ] && [ "$tempFi" != " -i " ];
 			then
+				f_INFO "     - Transcoded to $(echo $tempFi|sed 's: -i ::g')"
 				returnMap="$returnMap -map $inCount:0"
 				returnFlag="$returnFlag -c:s:$subCount mov_text -metadata:s:s:$subCount language=$(getAudioLanguage $i)"
 			
@@ -328,9 +340,25 @@ function checkFileCodecs {
 				inCount=$(echo "$inCount+1"|bc)
 			fi
 		fi
+		
 	}
-	
 	echo "$returnFi $returnMap $returnFlag"
+}
+
+function checkForCrash() {
+	while [ $(ps aux | grep $1 | grep -v grep |wc -l) -gt 0 ]; do
+		fileCount=`ls -l $2| wc -l| sed 's: ::g'`
+		
+		if [ $fileCount -gt 3000 ];
+		then
+			f_ERROR "    - subtitle2pgm crashed. Retrying."
+			kill "$1"
+			rm -rf "$2"
+			
+			#ocrPGPSubtitle $3
+		fi
+		sleep 0.1
+	done
 }
 
 function ocrPGPSubtitle() {
@@ -342,25 +370,32 @@ function ocrPGPSubtitle() {
 	rm -f /tmp/*.idx /tmp/*.sub /tmp/*.ps1 /tmp/*.srtx /tmp/*.sup /tmp/*.pgm /tmp/*.pgm.txt
 
 	f_INFO "   - Need to convert subtitle"
-	f_INFO "     - Running: mkvextract tracks \"$DEFAULT_PATH\" \"$1:/tmp/track$1.sup\""
-	mkvextract tracks "$DEFAULT_PATH" "$1:/tmp/track$1.sup" > /dev/null 2>&1
+	mytmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'pacman'`
+	f_INFO "     - Setting Temp-Dir to: $mytmpdir"
+	f_INFO "     - Running: mkvextract tracks \"$DEFAULT_PATH\" \"$1:$mytmpdir/track$1.sup\""
+	mkvextract tracks "$DEFAULT_PATH" "$1:$mytmpdir/track$1.sup" > /dev/null 2>&1
 	
-	f_INFO "     - Running: bdsup2sub++ -o \"/tmp/track$1.sub\" \"/tmp/track$1.sup\""
-	bdsup2sub++ -o "/tmp/track$1.sub" "/tmp/track$1.sup" > /dev/null 2>&1
+	f_INFO "     - Running: bdsup2sub++ -o \"$mytmpdir/track$1.sub\" \"$mytmpdir/track$1.sup\""
+	bdsup2sub++ -o "$mytmpdir/track$1.sub" "$mytmpdir/track$1.sup" > /dev/null 2>&1
 	
-	f_INFO "     - Running: tcextract -x ps1 -t sub -a 0x20 -i \"/tmp/track$1.sub\" > \"/tmp/track$1.ps1\""
-	tcextract -x ps1 -t sub -a 0x20 -i "/tmp/track$1.sub" > "/tmp/track$1.ps1"
+	f_INFO "     - Running: tcextract -x ps1 -t sub -a 0x20 -i \"$mytmpdir/track$1.sub\" > \"$mytmpdir/track$1.ps1\""
+	tcextract -x ps1 -t sub -a 0x20 -i "$mytmpdir/track$1.sub" > "$mytmpdir/track$1.ps1"
 	
-	f_INFO "     - Running: subtitle2pgm -i \"/tmp/track$1.ps1\" -o \"/tmp/track$1-\" -P"
-	subtitle2pgm -i "/tmp/track$1.ps1" -o "/tmp/track$1-" -P > /dev/null 2>&1
+	f_INFO "     - Running: subtitle2pgm -i \"$mytmpdir/track$1.ps1\" -o \"$mytmpdir/track$1-\" -P"
 	
-	f_INFO "     - Running: tesseract for $(ls /tmp | grep '.pgm'| wc -l| sed 's: ::g') files"
-	for f in /tmp/track"$1"-*.pgm ;  do tesseract "$f" "$f" > /dev/null 2>&1 ; done
+	subtitle2pgm sometimes runs into infinity-loops, therefore we need to check how many pictures it extracted.
+	subtitle2pgm -i "$mytmpdir/track$1.ps1" -o "$mytmpdir/track$1-" -P > /dev/null 2>&1 & PID=$! &&
+	checkForCrash "$PID" "$mytmpdir" "$1"
 	
-	if [[ $(ls /tmp | grep ".pgm"| wc -l| sed 's: ::g') -gt 0 ]];
+	counter=$(ls $mytmpdir | grep '.pgm'| wc -l| sed 's: ::g')
+	
+	f_INFO "     - Running: tesseract for $counter files"
+	for f in "$mytmpdir"/track"$1"-*.pgm ;  do tesseract "$f" "$f" > /dev/null 2>&1 ; done
+	
+	if [[ $(ls "$mytmpdir" | grep ".pgm"| wc -l| sed 's: ::g') -gt 0 ]];
 	then
-		f_INFO "     - Running: srttool -s -i \"/tmp/track$1-.srtx\" -o \"./file$1.srt\""
-		srttool -s -i "/tmp/track$1-.srtx" -o "./file$1.srt" > /dev/null 2>&1
+		f_INFO "     - Running: srttool -s -i \"$mytmpdir/track$1-.srtx\" -o \"./file$1.srt\""
+		srttool -s -i "$mytmpdir/track$1-.srtx" -o "./file$1.srt" > /dev/null 2>&1
 	
 		ret=" -i ./file$1.srt"
 	else
@@ -368,7 +403,8 @@ function ocrPGPSubtitle() {
 		ret=""
 	fi
 	
-	rm -f /tmp/*.idx /tmp/*.sub /tmp/*.ps1 /tmp/*.srtx /tmp/*.sup /tmp/*.pgm /tmp/*.pgm.txt
+	f_INFO "     - Deleting Temp-Dir ($mytmpdir)"
+	rm -rf "$mytmpdir"
 	echo "$ret"
 }
 
@@ -706,9 +742,11 @@ function startEncode {
 		f_INFO "Cropping Video to: $(echo $cropVal|sed 's/-filter:v crop=//g')"
 	fi
 	
+	trap "exit 1" SIGINT SIGTERM
+	
 	f_INFO "ffmpeg-command:\n\nffmpeg -y -sub_charenc UTF-8 -vstats_file /tmp/vstats -i \"$DEFAULT_PATH\" $fiCod $cropVal \"$dictPath/output/$filename.$DEFAULT_OUTPUTF\"\n"
 	
-	#exit 0
+	exit 0
 	
 	nice -n 15 ffmpeg -y -vstats_file /tmp/vstats -i "$DEFAULT_PATH" $fiCod $cropVal "$dictPath/output/$filename.$DEFAULT_OUTPUTF" 2>/dev/null & 
         PID=$! && 
