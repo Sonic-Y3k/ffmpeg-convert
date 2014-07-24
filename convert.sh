@@ -83,7 +83,6 @@ function getAudioInfo {
 			myl="{a:this.index,b:this.codec_name,c:this.tags.language,d:this.channels}"
 		fi
 		
-		#info=$(cat ffprobe.txt |jsawk 'return this.streams' |jsawk 'if (!this.index != '$1') return null' |jsawk 'if (!this.tags) return {a:this.index,b:this.codec_name,d:this.channels}' |jsawk 'if (this.tags) return '$myl'' |jsawk -n "out (this)" |sed 's/\"//g' |sed 's/{a://g' |sed 's/b://g' |sed 's/c://g' |sed 's/d://g' |sed 's/}//g')
 		for info in `cat ffprobe.txt |jsawk 'return this.streams' |jsawk 'if (!this.tags) return {a:this.index,b:this.codec_name,d:this.channels}' |jsawk 'if (this.tags) return '$myl'' |jsawk -n "out (this)" |sed 's/\"//g' |sed 's/{a://g' |sed 's/b://g' |sed 's/c://g' |sed 's/d://g' |sed 's/}//g'`
 		do
 			if [ $(echo $info|cut -d',' -f1) = "$1" ]; then
@@ -463,7 +462,7 @@ function showFrame {
 	echo -e "#  Convert with Pacman"
 	echo -e "#"
 	echo -e "#  Info"
-	echo -e "#    Pacman-Convert:\tVersion 1.5\t\t(built on Jul 20 2014)"
+	echo -e "#    Pacman-Convert:\tVersion 1.6\t\t(built on Jul 24 2014)"
 	echo -e "#    ffmpeg:\t\tVersion $(ffmpeg -version |head -n1 |cut -d' ' -f3)\t\t($(ffmpeg -version |sed -n 2p|cut -d'w' -f1| awk '{$1=$1}1'|sed 's/.\{9\}$//'))"
 	echo -e "#    x264:\t\tVersion $(x264 --version|head -n1| cut -d' ' -f2)\t($(x264 --version |sed -n 2p|cut -d',' -f1| awk '{$1=$1}1'))"
 
