@@ -82,8 +82,9 @@ function getAudioInfo {
 		else
 			myl="{a:this.index,b:this.codec_name,c:this.tags.language,d:this.channels}"
 		fi
-	
-		for info in `cat ffprobe.txt |jsawk 'return this.streams' |jsawk "return $myl" | jsawk -n "out (this)" | sed 's/\"//g' | sed 's/{a://g' | sed 's/b://g' | sed 's/c://g' | sed 's/d://g' | sed 's/}//g'`
+		
+		#info=$(cat ffprobe.txt |jsawk 'return this.streams' |jsawk 'if (!this.index != '$1') return null' |jsawk 'if (!this.tags) return {a:this.index,b:this.codec_name,d:this.channels}' |jsawk 'if (this.tags) return '$myl'' |jsawk -n "out (this)" |sed 's/\"//g' |sed 's/{a://g' |sed 's/b://g' |sed 's/c://g' |sed 's/d://g' |sed 's/}//g')
+		for info in `cat ffprobe.txt |jsawk 'return this.streams' |jsawk 'if (!this.tags) return {a:this.index,b:this.codec_name,d:this.channels}' |jsawk 'if (this.tags) return '$myl'' |jsawk -n "out (this)" |sed 's/\"//g' |sed 's/{a://g' |sed 's/b://g' |sed 's/c://g' |sed 's/d://g' |sed 's/}//g'`
 		do
 			if [ $(echo $info|cut -d',' -f1) = "$1" ]; then
 				ret="$info"
@@ -302,7 +303,7 @@ function checkFileCodecs {
 		currCod="$(getAudioCodec $i)"
 		
 		#PGP needs conversion...
-		subcodecs=("pgssub" "ass" "dvb_subtitle" "dvd_subtitle" "mov_text" "srt" "ssa" "subrip" "xsub")
+		subcodecs=("pgssub" "ass" "dvdsub" "dvd_subtitle" "mov_text" "srt" "ssa" "subrip" "xsub")
 		containsElement "$currCod" "${subcodecs[@]}"
 		testSub="$?"
 		
@@ -402,7 +403,7 @@ function ocrPGPSubtitle() {
 	if [ -s "$mytmpdir/track$1.srt" ]
 	then
 		cp "$mytmpdir/track$1.srt" "./track$1.srt"
-		ret=" -i ./file$1.srt"
+		ret=" -i ./track$1.srt"
 	else
 		ret=""
 	fi
