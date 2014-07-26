@@ -204,12 +204,12 @@ function checkFileCodecs {
 	for (( i=0; i<$numberOfTracks; i++ )) {
 		currCod="$(getAudioCodec $i)"
 		
-		audcodecs=("dca" "real_144" "libmp3lame" "mp2fixed" "g726" "g722" "ac3_fixed" "libfaac" "adpcm_adx" "adpcm_g722" "adpcm_g726" "adpcm_ima_qt" "adpcm_ima_wav" "adpcm_ms" "adpcm_swf" "adpcm_yamaha" "alac" "comfortnoise" "dts" "eac3" "flac" "g723_1" "mp2" "mp3" "nellymoser" "pcm_alaw" "pcm_f32be" "pcm_f32le" "pcm_f64be" "pcm_f64le" "pcm_mulaw" "pcm_s16be" "pcm_s16be_planar" "pcm_s16le" "pcm_s16le_planar" "pcm_s24be" "pcm_s24daud" "pcm_s24le" "pcm_s24le_planar" "pcm_s32be" "pcm_s32le" "pcm_s32le_planar" "pcm_s8" "pcm_s8_planar" "pcm_u16be" "pcm_u16le" "pcm_u24be" "pcm_u24le" "pcm_u32be" "pcm_u32le" "pcm_u8" "ra_144" "roq_dpcm" "s302m" "sonic" "tta" "vorbis" "wavpack" "wmav1" "wmav2")
+		audcodecs=("truehd" "dca" "real_144" "libmp3lame" "mp2fixed" "g726" "g722" "ac3_fixed" "libfaac" "adpcm_adx" "adpcm_g722" "adpcm_g726" "adpcm_ima_qt" "adpcm_ima_wav" "adpcm_ms" "adpcm_swf" "adpcm_yamaha" "alac" "comfortnoise" "dts" "eac3" "flac" "g723_1" "mp2" "mp3" "nellymoser" "pcm_alaw" "pcm_f32be" "pcm_f32le" "pcm_f64be" "pcm_f64le" "pcm_mulaw" "pcm_s16be" "pcm_s16be_planar" "pcm_s16le" "pcm_s16le_planar" "pcm_s24be" "pcm_s24daud" "pcm_s24le" "pcm_s24le_planar" "pcm_s32be" "pcm_s32le" "pcm_s32le_planar" "pcm_s8" "pcm_s8_planar" "pcm_u16be" "pcm_u16le" "pcm_u24be" "pcm_u24le" "pcm_u32be" "pcm_u32le" "pcm_u8" "ra_144" "roq_dpcm" "s302m" "sonic" "tta" "vorbis" "wavpack" "wmav1" "wmav2")
 		containsElement "$currCod" "${audcodecs[@]}"
 		testAud="$?"
 		
 		#Output as mkv-format - just copy audio...
-		if [[ $DEFAULT_OUTPUTF = *"mkv"* && ( $currCod = *"ac3"* || $currCod = *"dca"* ) ]]; then
+		if [[ $DEFAULT_OUTPUTF = *"mkv"* && ( $currCod = *"ac3"* || $currCod = *"dca"* || $currCod = *"truehd"* ) ]]; then
 			returnMap="$returnMap -map 0:$i"
 			returnFlag="$returnFlag -c:a:$audCount copy -metadata:s:a:$audCount language=$(getAudioLanguage $i)"
 			audCount=$(echo "$audCount+1"|bc)
@@ -309,7 +309,7 @@ function checkFileCodecs {
 		#Output as mkv-format
 		if [[ "$DEFAULT_OUTPUTF" = "mkv" && "$testSub" = "0" ]]; then
 			returnMap="$returnMap -map 0:$i"
-			returnFlag="$returnFlag -c:s:$subCount copy"
+			returnFlag="$returnFlag -c:s:$subCount copy -metadata:s:s:$subCount language=$(getAudioLanguage $i)"
 			f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (copy)"
 			newCount=$(echo "$newCount+1"|bc)
 			subCount=$(echo "$subCount+1"|bc)
@@ -317,7 +317,7 @@ function checkFileCodecs {
 		#Output as m4v-format
 		elif [[ "$DEFAULT_OUTPUTF" = "m4v" && "$testSub" = "0" && "$currCod" != "pgssub" ]]; then
 			returnMap="$returnMap -map 0:$i"
-			returnFlag="$returnFlag -c:s:$subCount mov_text"
+			returnFlag="$returnFlag -c:s:$subCount mov_text -metadata:s:s:$subCount language=$(getAudioLanguage $i)"
 			f_INFO "-Stream #0:$i ($currCod - $(getAudioLanguage $i)) -> #0:$newCount (mov_text)"
 			newCount=$(echo "$newCount+1"|bc)
 			subCount=$(echo "$subCount+1"|bc)	
