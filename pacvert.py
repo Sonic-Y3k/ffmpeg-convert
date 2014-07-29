@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 
 # -*- coding: utf-8 -*-
 
@@ -34,7 +34,7 @@ import urllib2 # Check for new versions from the repo
 # Global Variables in all caps #
 ################################
 
-VERSION = 1.8;
+VERSION = 1.9;
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -55,7 +55,7 @@ def banner():
 		Displays ASCII art
 	"""
 	global VERSION
-	print ''
+	print ""
 	print R+"      :;;;;;;;;;:    "
 	print R+"    :;;;;;;;;;;;;:   "
 	print R+"   ;;;;;;;;;;;;;;::  "
@@ -82,9 +82,9 @@ def get_remote_version():
 		page = sock.read()
 	except IOError:
 		return -1
-		
-	
-	
+
+
+
 	#Get the version
 	start	= page.find("VERSION")
 	if start != -1:
@@ -95,7 +95,7 @@ def get_remote_version():
 		except ValueError:
 			rver=page.split('\n')[0]
 			print R+" [!] invalid version number: '"+page+"'"
-			
+
 	return rver
 
 def upgrade():
@@ -108,7 +108,7 @@ def upgrade():
 		print GR+" [!]"+W+" upgrading requires an "+R+"internet connection"+W
 		print GR+" [+]"+W+" checking for latest version..."+W
 		remote_version = get_remote_version()
-		
+
 		if remote_version == -1:
 			print R+" [!]"+O+" unable to access github"+W
 		elif remote_version > float(VERSION):
@@ -117,7 +117,7 @@ def upgrade():
 			if not response.lower().startswith("y"):
 				print GR+" [-]"+W+" upgrading "+O+"aborted"+W
 				return
-			
+
 			#Download script and replace this one
 			print GR+" [+] "+G+"downloading"+W+" update..."
 			try:
@@ -125,21 +125,21 @@ def upgrade():
 				page = sock.read()
 			except IOError:
 				page = ''
-			
+
 			if page == '':
 				print R+' [+] '+O+'unable to download latest version'+W
 				exit_gracefully(1)
-				
+
 			# Create/save the new script
 			f=open('pacvert_new.py','w')
 			f.write(page)
 			f.close()
-			
+
 			# The filename of the running script
 			this_file = __file__
 			if this_file.startswith('./'):
 				this_file = this_file[2:]
-			
+
 			# create/save a shell script that replaces this script with the new one
 			f = open('update_pacvert.sh','w')
 			f.write('''#!/bin/sh\n
@@ -149,27 +149,27 @@ def upgrade():
 				chmod +x ''' + this_file + '''\n
 				''')
 			f.close()
-			
+
 			# Change permissions on the script
 			returncode = call(['chmod','+x','update_pacvert.sh'])
 			if returncode != 0:
 				print R+' [!]'+O+' permission change returned unexpected code: '+str(returncode)+W
 				exit_gracefully(1)
-			
+
 			# Run the script
 			returncode = call(['sh','update_pacvert.sh'])
 			if returncode != 0:
 				print R+' [!]'+O+' upgrade script returned unexpected code: '+str(returncode)+W
 				exit_gracefully(1)
-			
+
 			print GR+' [+] '+G+'updated!'+W+' type "./' + this_file + '" to run again'
 		else:
-			print GR+' [-]'+W+' your copy of wifite is '+G+'up to date'+W
-		
+			print GR+' [-]'+W+' your copy of Pacvert is '+G+'up to date'+W
+
 	except KeyboardInterrupt:
 		print R+'\n (^C)'+O+' Pacvert upgrade interrupted'+W
 		exit_gracefully(0)
-		
+
 def exit_gracefully(code=0):
 	"""
 		May exit the program at any given time.
@@ -180,8 +180,8 @@ if __name__ == '__main__':
 	try:
 		banner()
 		upgrade()
-	
+
 	except KeyboardInterrupt: print R+'\n (^C)'+O+' interrupted\n'+W
 	except EOFError:          print R+'\n (^D)'+O+' interrupted\n'+W
-	
+
 	exit_gracefully(0)
