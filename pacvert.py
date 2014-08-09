@@ -5,7 +5,7 @@
 """
 	Convert with Pacman
 	
-	author: sonic.y3k at googlemail
+	author: sonic.y3k at googlemail dot com
 	
 	(c) 2014
 """
@@ -21,12 +21,18 @@ import random		# Generating a random numbers.
 import errno		# Error numbers
 import fnmatch		# Finding files.
 import re			# Regular Expressions
-import string		#Remove unicode data
+import string		# Remove unicode data
+import select
+import shlex
+
+import fcntl
+from progressbar import *
 
 from sys import argv          # Command-line arguments
 from sys import stdout, stdin # Flushing
 
 from shutil import copy # Copying files
+from shutil import rmtree #Remove temp dir
 
 # Executing, communicating with, killing processes
 from subprocess import Popen, call, PIPE, check_output, CalledProcessError
@@ -71,6 +77,16 @@ SEARCHEXT = [".avi",".flv",".mov",".mp4",".mpeg",".mpg",".ogv",".wmv",".m2ts",".
 
 #Default Values
 DEFAULT_CRF=18.0
+DEFAULT_FILEFORMAT="m4v"
+DEFAULT_OUTPUTDIR="output"
+DEFAULT_DELETEFILE=False
+
+if os.uname()[0].startswith("Darwin"):
+	DEFAULT_AACLIB="libfaac"
+	DEFAULT_AC3LIB="ac3"
+elif os.uname()[0].startswith("Linux"):
+	DEFAULT_AACLIB="aac -strict -2"
+	DEFAULT_AC3LIB="ac3"
 
 ###################
 # DATA STRUCTURES #
@@ -218,18 +234,24 @@ class MediaInfo:
 		self.streams = []
 		self.streammap = ""
 		self.streamopt = ""
+		self.audCount = 0
+		self.subCount = 0
+		self.addFiles = []
 
 	def add_stream(self, stream):
 		self.streams.append(stream)
 		
 	def add_streammap(self, map):
-		self.streammap += map
+		self.streammap += " "+map
 		
 	def add_streamopt(self, opt):
-		self.streamopt += opt
-		
+		self.streamopt += " "+opt
+	
 	def get_flags(self):
-		return str(self.streammap+" "+self.streamopt)
+		inp="-i "+self.path
+		for i in self.addFiles:
+			inp=inp+" -i "+i
+		return str("ffmpeg "+inp+self.streammap+self.streamopt)
 
 ##################
 # MAIN FUNCTIONS #
@@ -461,7 +483,7 @@ def find_files():
 	for root, dirnames, filenames in os.walk(os.getcwd()):
 		for filename in filenames:
 			file_ext = os.path.splitext(filename)
-			if file_ext[1] in SEARCHEXT:
+			if file_ext[1] in SEARCHEXT and root != os.getcwd()+"/output":
 				TOCONVERT.append(MediaInfo(root+"/"+filename, file_ext[0]))		
 	
 	filecount = len(TOCONVERT)
@@ -501,26 +523,102 @@ def analyze_crop(file):
 			
 			os.remove("./md5sums")
 		
-			crop_row.append(crop[0][0])
-			crop_row.append(crop[0][1])
-			crop_row.append(crop[0][2])
-			crop_row.append(crop[0][3])
-			ret=crop_row
+		crop_row.append(crop[0][0])
+		crop_row.append(crop[0][1])
+		crop_row.append(crop[0][2])
+		crop_row.append(crop[0][3])
+		ret=crop_row
 		
-			crop_row = []
+		crop_row = []
 		
-			for c in crop:
-				if int(c[0]) > int(ret[0]):
-					ret[0] = c[0]
-					ret[2] = c[2]
+		for c in crop:
+			if int(c[0]) > int(ret[0]):
+				ret[0] = c[0]
+				ret[2] = c[2]
 				
-				if int(c[1]) > int(ret[1]):
-					ret[1] = c[1]
-					ret[3] = c[3]
+			if int(c[1]) > int(ret[1]):
+				ret[1] = c[1]
+				ret[3] = c[3]
 	except:
 		print (R+" [!]"+W+" there was a problem in the cropping department.")
 		exit_gracefully(1)	
 	return ret[0]+":"+ret[1]+":"+ret[2]+":"+ret[3]
+
+def convertSubtitle(path,index,lang):
+	"""
+		Converts video subtitles to
+		text subtitles
+	"""
+	try:
+		tempPath=temp+os.path.splitext(os.path.basename(path))[0]+"."+index
+		
+		
+		cmd_mkvextract	= ["mkvextract", "tracks", path, index+":"+tempPath+".sup"]
+		cmd_bdsup2sub	= ["bdsup2sub", "-o", tempPath+".sub", tempPath+".sup"]
+		cmd_vobsub2srt	= ["vobsub2srt", "--tesseract-lang", lang, tempPath, "--verbose"]
+		proc_mkvextract	= Popen(cmd_mkvextract, stdout=PIPE)
+		widgets = [GR+" [-]"+W+" extracting subtitle\t", Percentage(), ' ', Bar(marker='#',left='[',right=']'),' ', ETA()] #see docs for other options
+		pbar = ProgressBar(widgets=widgets, maxval=100)
+		pbar.start()
+		prev=0
+		while proc_mkvextract.poll() is None:
+			if not proc_mkvextract.stdout: break
+			out = os.read(proc_mkvextract.stdout.fileno(), 1024)
+			if out != "":
+				out = int(re.sub("[^0-9]", "", out))
+				if out > prev and out >= 0 and out <= 100: 
+					pbar.update(out)
+					prev=out
+				stdout.flush()
+		pbar.finish()
+
+		widgets = [GR+" [-]"+W+" extracting frames  \t", Percentage(), ' ', Bar(marker='#',left='[',right=']'),' ', ETA()] #see docs for other options
+		pbar = ProgressBar(widgets=widgets, maxval=100)
+		pbar.start()
+		proc_bdsup2sub	= Popen(cmd_bdsup2sub, stderr=DN, stdout=PIPE)
+		prev=0.0
+		while proc_bdsup2sub.poll() is None:
+			if not proc_bdsup2sub.stdout: break
+			out = os.read(proc_bdsup2sub.stdout.fileno(), 1024)
+			
+			if "Decoding frame" in out:
+				out=out.split(" ")
+				out=out[2].split("/")
+				
+				num=round(float(out[0])/float(out[1])*100)
+				if num > prev and num >= 0 and num <= 100: 
+					pbar.update(num)
+					prev=num
+		pbar.finish()
+		
+		widgets = [GR+" [-]"+W+" using ocr on frames\t", Percentage(), ' ', Bar(marker='#',left='[',right=']'),' ', ETA()] #see docs for other options
+		length=0
+		ins = open(tempPath+'.idx', "r")
+		for line in ins:
+			if "timestamp" in line:
+				length+=1
+				
+		pbar = ProgressBar(widgets=widgets, maxval=length)
+		pbar.start()
+		proc_vobsub2srt	= Popen(cmd_vobsub2srt, stderr=DN, stdout=PIPE)
+		prev=0
+		while proc_vobsub2srt.poll() is None:
+			if not proc_vobsub2srt.stdout: break
+			out = os.read(proc_vobsub2srt.stdout.fileno(), 1024)
+			out = out.split(" ")
+			out = out[0]
+			if out.isdigit():
+				num = int(out)
+				
+			if num == prev+1 and num >= 0 and num <= length:
+						pbar.update(num)
+						prev=num
+		pbar.finish()
+		return tempPath+".srt"
+		
+	except CalledProcessError, e:
+		print e
+		exit_gracefully(1)
 	
 def analyze_files():
 	"""
@@ -569,8 +667,83 @@ def analyze_files():
 						else:
 							#We can copy the video stream
 							media.add_streamopt("-c:v:0 copy -metadata:s:v:0 language="+c.language())
-						
-						print media.streamopt
+				
+				for c in media.streams:
+					if c.isAudio():
+						if DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "ac3" or c.codec() == "dca" or c.codec() == "truehd"):
+							media.add_streammap("-map 0:"+str(c.index))
+							media.add_streamopt("-c:a:"+str(media.audCount)+" copy -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+							media.audCount+=1
+						elif DEFAULT_FILEFORMAT == "mkv" and (c.codec() != "ac3" and c.codec() != "dca" and c.codec() != "truehd"):
+							media.add_streammap("-map 0:"+str(c.index))
+							media.add_streamopt("-c:a:"+str(media.audCount)+" "+DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+							media.audCount+=1
+						elif DEFAULT_FILEFORMAT == "m4v" and (c.codec() == "ac3" or c.codec() == "aac"):
+							doubleLang = 0
+							for d in media.streams:
+								if d.isAudio() and ((c.codec() == "ac3" and d.codec() == "aac") or (c.codec() == "aac" and d.codec() == "ac3")) and c.language() == d.language():
+									doubleLang = 1
+							
+							if doubleLang == 0 and c.codec() == "ac3":
+								media.add_streammap("-map 0:"+str(c.index)+" -map 0:"+str(c.index))
+								media.add_streamopt("-c:a:"+str(media.audCount)+" "+DEFAULT_AACLIB+" -b:a:"+str(media.audCount)+" 320k -ac:"+str(media.audCount+1)+" 2 -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+								media.audCount+=1
+								media.add_streamopt("-c:a:"+str(media.audCount)+" copy -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+								media.audCount+=1
+							elif doubleLang == 0 and c.codec() == "aac":
+								media.add_streammap("-map 0:"+str(c.index)+" -map 0:"+str(c.index))
+								media.add_streamopt("-c:a:"+str(media.audCount)+" copy -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+								media.audCount+=1
+								media.add_streamopt("-c:a:"+str(media.audCount)+" "+DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount+1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+								media.audCount+=1
+							else:
+								media.add_streammap("-map 0:"+str(c.index))
+								media.add_streamopt("-c:a:"+str(media.audCount)+" copy -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+								media.audCount+=1								
+						else:
+							media.add_streammap("-map 0:"+str(c.index)+" -map 0:"+str(c.index))
+							media.add_streamopt("-c:a:"+str(media.audCount)+" "+DEFAULT_AACLIB+" -b:a:"+str(media.audCount)+" 320k -ac:"+str(media.audCount+1)+" 2 -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+							media.audCount+=1
+							media.add_streamopt("-c:a:"+str(media.audCount)+" "+DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount+1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+							media.audCount+=1
+				
+				for c in media.streams:
+					if c.isSubtitle():
+						if (DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "ass" or c.codec() == "srt" or c.codec() == "ssa")) or (DEFAULT_FILEFORMAT == "m4v" and c.codec() == "mov_text"):
+							media.add_streammap("-map 0:"+str(c.index))
+							media.add_streamopt("-c:s:"+str(media.subCount)+" copy -metadata:s:s:"+str(media.subCount)+" language="+c.language())
+							media.subCount+=1
+						elif DEFAULT_FILEFORMAT == "mkv" and c.codec() == "pgssub":
+							#Convert to srt
+							print (GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that need to be "+C+"converted"+W)
+							newSub=convertSubtitle(media.path, c.index, c.language())
+							
+							if newSub != "":
+								media.addFiles.append(newSub)
+								media.add_streammap("-map "+str(len(media.addFiles))+":0")
+								
+								media.add_streamopt("-c:s:"+str(media.subCount)+" copy -metadata:s:s:"+str(media.subCount)+" language="+c.language())
+								media.subCount+=1
+								
+						elif DEFAULT_FILEFORMAT == "m4v" and c.codec() == "pgssub":
+							#Convert to srt and then to mov_text
+							print (GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that need to be "+C+"converted"+W)
+							newSub=convertSubtitle(media.path,c.index, c.language())
+							
+							if newSub != "":
+								media.addFiles.append(newSub)
+								media.add_streammap("-map "+str(len(media.addFiles))+":0")
+								
+								media.add_streamopt("-c:s:"+str(media.subCount)+" mov_text -metadata:s:s:"+str(media.subCount)+" language="+c.language())
+								media.subCount+=1
+						else:
+							media.add_streammap("-map 0:"+str(c.index))
+							if DEFAULT_FILEFORMAT == "mkv":
+								media.add_streamopt("-c:s:"+str(media.subCount)+" srt -metadata:s:s:"+str(media.subCount)+" language="+c.language())
+							else:
+								media.add_streamopt("-c:s:"+str(media.subCount)+" mov_text -metadata:s:s:"+str(media.subCount)+" language="+c.language())
+							media.subCount+=1
+							
 			except CalledProcessError, e:
 				print (R+" [!]"+W+" something doesn't work with "+O+media.path+W+":"+W)
 				print (R+" [!]"+W+" "+str(e))
@@ -582,6 +755,72 @@ def analyze_files():
 	time_total = time_ended-time_started
 	print (GR+" [-]"+W+" analyzing done. This took us "+str(datetime.timedelta(seconds=time_total))+" "+W)
 	
+def convert_files(callback=None):
+	"""
+		Finally convert all the
+		files.
+	"""
+	time_started = time.time()
+	
+	for media in TOCONVERT:
+		if os.path.isfile(media.path):
+			try:
+				if not os.path.exists(DEFAULT_OUTPUTDIR):
+					os.makedirs(DEFAULT_OUTPUTDIR)
+			
+				cmd = media.get_flags().split(" ")
+				cmd.append("-y")
+				#cmd.append("-t")
+				#cmd.append("00:01:00.00")
+				cmd.append(DEFAULT_OUTPUTDIR+"/"+media.name+"."+DEFAULT_FILEFORMAT)
+				widgets = [GR+" [-]"+W+" starting conversion\t",' ',Percentage(), ' ', Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()] #see docs for other options
+				cmd_med = ["mediainfo", "--Inform=Video;%FrameCount%", media.path]
+				frames = float(check_output(cmd_med))
+
+				pipe = Popen(cmd,stderr=PIPE,close_fds=True)
+				fcntl.fcntl(pipe.stderr.fileno(),fcntl.F_SETFL,fcntl.fcntl(pipe.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK)
+							
+				prev=0
+				pbar = ProgressBar(widgets=widgets, maxval=frames,redirect_stdout=True,redirect_stderr=True)
+				pbar.start()
+				
+				time.sleep(2)
+				while pipe.poll() is None:
+					readx = select.select([pipe.stderr.fileno()], [], [])[0]
+					if readx:
+						chunk = pipe.stderr.read()
+						if chunk == '':
+							break
+						m = re.findall(r'\d+',chunk)
+						out = m[0]
+					
+						if out.isdigit():
+							num = int(out)
+				
+						if num > prev and num >= 0 and num <= frames:
+							widgets[6] = FormatLabel(m[1]+" FPS")
+							pbar.update(num)
+							prev=num
+				
+				pbar.finish()
+			except CalledProcessError, e:
+				print (R+" [!]"+W+" something doesn't work with "+O+media.path+W+":"+W)
+				print (R+" [!]"+W+" "+str(e))
+				exit_gracefully(1)
+		newframes=float(check_output(["mediainfo", "--Inform=Video;%FrameCount%", DEFAULT_OUTPUTDIR+"/"+media.name+"."+DEFAULT_FILEFORMAT]))
+		diff=abs(frames-newframes)
+		if DEFAULT_DELETEFILE and diff <= 10:
+			print (O+" [W]"+W+" passed sanity check - deleting file"+W)
+			os.remove(media.path)
+		elif DEFAULT_DELETEFILE and diff > 10:
+			print (R+" [!]"+W+" failed sanity check - keeping file"+W)
+		else:
+			print (O+" [W]"+W+" sanity check disabled - keeping file"+W)
+			
+	time_ended = time.time()
+	time_total = time_ended-time_started
+	print (GR+" [-]"+W+" converting done. This took us "+str(datetime.timedelta(seconds=time_total))+" "+W)
+	print (R+" [-]"+W+" bye bye."+W)
 
 def exit_gracefully(code=0):
 	"""
@@ -589,10 +828,9 @@ def exit_gracefully(code=0):
 	"""
 	# Remove temp files and folder
 	if os.path.exists(temp):
-		for file in os.listdir(temp):
-			os.remove(temp + file)
-		os.rmdir(temp)
-	print (R+" [!]"+W+" quitting") # pacman will now exit"
+		rmtree(temp)  # delete directory
+
+	print (R+" [!]"+W+" quitting") # pacvert will now exit"
 	print ''
 	# GTFO
 	exit(code)
@@ -604,7 +842,7 @@ if __name__ == '__main__':
 		initial_check()
 		find_files()
 		analyze_files()
-
+		convert_files()
 	except KeyboardInterrupt: print (R+'\n (^C)'+O+' interrupted\n'+W)
 	except EOFError:          print (R+'\n (^D)'+O+' interrupted\n'+W)
 
