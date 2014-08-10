@@ -680,13 +680,13 @@ def analyze_crop(file):
 		RUN_CONFIG.exit_gracefully(1)	
 	return ret[0]+":"+ret[1]+":"+ret[2]+":"+ret[3]
 
-def convertSubtitle(path,index,lang):
+def convertSubtitle(path,index,lang,RUN_CONFIG):
 	"""
 		Converts video subtitles to
 		text subtitles
 	"""
 	try:
-		tempPath=temp+os.path.splitext(os.path.basename(path))[0]+"."+index
+		tempPath=RUN_CONFIG.temp+os.path.splitext(os.path.basename(path))[0]+"."+index
 		
 		
 		cmd_mkvextract	= ["mkvextract", "tracks", path, index+":"+tempPath+".sup"]
@@ -771,6 +771,7 @@ def analyze_files(RUN_CONFIG):
 	for media in TOCONVERT:
 		if os.path.isfile(media.path):
 			try:
+				RUN_CONFIG.setFormat(media.path)
 				#We beginn with ffprobe to get Stream info
 				cmd = [ "ffprobe", "-show_streams", "-pretty", "-loglevel", "quiet", media.path ]
 				proc_ffprobe = check_output(cmd, stderr=DN)
@@ -861,7 +862,7 @@ def analyze_files(RUN_CONFIG):
 						elif RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and c.codec() == "pgssub":
 							#Convert to srt
 							print (GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that need to be "+C+"converted"+W)
-							newSub=convertSubtitle(media.path, c.index, c.language())
+							newSub=convertSubtitle(media.path, c.index, c.language(),RUN_CONFIG)
 							
 							if newSub != "":
 								media.addFiles.append(newSub)
@@ -873,7 +874,7 @@ def analyze_files(RUN_CONFIG):
 						elif RUN_CONFIG.DEFAULT_FILEFORMAT == "m4v" and c.codec() == "pgssub":
 							#Convert to srt and then to mov_text
 							print (GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that need to be "+C+"converted"+W)
-							newSub=convertSubtitle(media.path,c.index, c.language())
+							newSub=convertSubtitle(media.path,c.index, c.language(),RUN_CONFIG)
 							
 							if newSub != "":
 								media.addFiles.append(newSub)
@@ -924,7 +925,10 @@ def convert_files(RUN_CONFIG,callback=None):
 				widgets = [GR+" [-]"+W+" starting conversion\t",' ',Percentage(), ' ', Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()] #see docs for other options
 				cmd_med = ["mediainfo", "--Inform=Video;%FrameCount%", media.path]
 				frames = float(check_output(cmd_med))
-
+				
+				print media.get_flags()
+				
+				exit(1)
 				pipe = Popen(cmd,stderr=PIPE,close_fds=True)
 				fcntl.fcntl(pipe.stderr.fileno(),fcntl.F_SETFL,fcntl.fcntl(pipe.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK)
 							
@@ -955,7 +959,11 @@ def convert_files(RUN_CONFIG,callback=None):
 				print (R+" [!]"+W+" something doesn't work with "+O+media.path+W+":"+W)
 				print (R+" [!]"+W+" "+str(e))
 				RUN_CONFIG.exit_gracefully(1)
-		newframes=float(check_output(["mediainfo", "--Inform=Video;%FrameCount%", RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT]))
+		try:
+			newframes=float(check_output(["mediainfo", "--Inform=Video;%FrameCount%", RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT]))
+		except ValueError:
+			newframes=0
+			
 		diff=abs(frames-newframes)
 		if RUN_CONFIG.DEFAULT_DELETEFILE and diff <= 10:
 			print (O+" [W]"+W+" passed sanity check - deleting file"+W)
