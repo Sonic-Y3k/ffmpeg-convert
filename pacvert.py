@@ -989,8 +989,7 @@ if __name__ == '__main__':
 		convert_files(RUN_CONFIG)
 		
 		if RUN_CONFIG.DEFAULT_SHUTDOWN and RUN_CONFIG.ConfirmRunningAsRoot():
-			print "imaging me shutdown"
-			#os.system('sudo shutdown now')
+			os.system('sudo shutdown now')
 
 	except KeyboardInterrupt: print (R+'\n (^C)'+O+' interrupted\n'+W)
 	except EOFError:          print (R+'\n (^D)'+O+' interrupted\n'+W)
