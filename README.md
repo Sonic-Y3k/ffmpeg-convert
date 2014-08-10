@@ -20,7 +20,7 @@ To download and execute pacvert, run the commands below:
 Usage:
 ------
 >
-    usage: pacvert.py [-h] [--crf CRF] [--chown CHOWN] [--ext {m4v,mkv}]
+    usage: pacvert.py [-h] [--chown CHOWN] [--crf CRF] [--ext {m4v,mkv}]
                       [--nocrop] [--outdir DIRECTORY] [--rmfile] [--shutdown]
                       [--x264level {1,1b,1.1,1.2,1.3,2,2.1,2.2,3,3.1,3.2,4,4.1,4.2,5,5.1}]
                       [--x264preset {ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow,placebo}]
@@ -32,8 +32,8 @@ Usage:
 >    
 >
     COMMAND:
-    --crf CRF             Change crf-video value to <float>.
     --chown CHOWN         Change output user.
+    --crf CRF             Change crf-video value to <float>.
     --ext {m4v,mkv}       Change output extension.
     --nocrop              Disable cropping
     --outdir DIRECTORY    Change outdir to <directory>.
@@ -47,6 +47,21 @@ Usage:
                           Change x264-profile
     --x264tune {film,animation,grain,stillimage,psnr,ssim,fastdecode,zerolatency}
                           Change x264-tune
+
+Default Options
+---------------
+* crf = 18
+* ext = m4v for files < 5GB and mkv for files > 5gb
+* x264level = 4.1
+* x264preset = slow
+* x264profile = high
+* x264tune = film
+
+Note: By creating m4v-files the audio stream layout will look like this:
+* map 0:1 to 0:1 AAC
+* map 0:1 to 0:2 AC3
+* map 0:2 to 0:3 AAC
+* map 0:2 to 0:4 AC3
 
 Required Programs
 -----------------
