@@ -20,7 +20,7 @@ To download and execute pacvert, run the commands below:
 Usage:
 ------
 >
-    usage: pacvert.py [-h] [--crf CRF] [--chown CHOWN] [--ext {m4v,mkv}]
+    usage: pacvert.py [-h] [--chown CHOWN] [--crf CRF] [--ext {m4v,mkv}]
                       [--nocrop] [--outdir DIRECTORY] [--rmfile] [--shutdown]
                       [--x264level {1,1b,1.1,1.2,1.3,2,2.1,2.2,3,3.1,3.2,4,4.1,4.2,5,5.1}]
                       [--x264preset {ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow,placebo}]
