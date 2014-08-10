@@ -389,7 +389,7 @@ class RunConfiguration:
 		command_group.add_argument('--outdir', help='Change outdir to <directory>.', action='store', dest='directory')
 		command_group.add_argument('--rmfile', help='Remove original video.', action='store_true', dest='rmfile')
 		command_group.add_argument('--shutdown', help='Shutdown after finishing all jobs.', action='store_true', dest='shutdown')
-		command_group.add_argument('--x264level', help='Change x264-level', action='store', type=float, dest='x264level', choices=['1','1b','1.1','...','4.1','4.2', '5', '5.1'])
+		command_group.add_argument('--x264level', help='Change x264-level', action='store', type=float, dest='x264level', choices=['1','1b','1.1','1.2','1.3','2','2.1','2.2','3','3.1','3.2','4','4.1','4.2', '5', '5.1'])
 		command_group.add_argument('--x264preset', help='Change x264-preset', action='store', dest='x264preset', choices=['ultrafast','superfast','veryfast','faster','fast','medium','slow','slower','veryslow','placebo'])
 		command_group.add_argument('--x264profile', help='Change x264-profile', action='store', dest='x264profile', choices=['baseline','main','high','high10','high422','high444'])
 		command_group.add_argument('--x264tune', help='Change x264-tune', action='store', dest='x264tune', choices=['film','animation','grain','stillimage','psnr','ssim','fastdecode','zerolatency'])
@@ -592,17 +592,6 @@ def initial_check(RUN_CONFIG):
 			print (R+"    "+O+"   install with "+C+"brew install https://raw.githubusercontent.com/Sonic-Y3k/homebrew/master/bdsup2sub++.rb"+W)
 		else:
 			print (R+"    "+O+"   available at "+C+"http://forum.doom9.org/showthread.php?p=1613303"+W)
-		RUN_CONFIG.exit_gracefully(1)
-	
-	transcodes = ["tcextract", "subtitle2pgm", "srttool"]
-	for transcode in transcodes:
-		if program_exists(transcode): continue
-		print (R+" [!]"+O+" required program not found: %s" % (R+transcode+W))
-		print (R+"    "+O+"   this tool is part of the transcode suite"+W)
-		if program_exists("brew"):
-			print (R+"    "+O+"   install with "+C+"brew install https://raw.githubusercontent.com/Sonic-Y3k/homebrew/master/transcode.rb"+W)
-		else:
-			print (R+"    "+O+"   available at "+C+"http://www.linuxfromscratch.org/blfs/view/svn/multimedia/transcode.html"+W)
 		RUN_CONFIG.exit_gracefully(1)
 	
 	if not program_exists("tesseract"):
