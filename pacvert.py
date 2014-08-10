@@ -926,9 +926,6 @@ def convert_files(RUN_CONFIG,callback=None):
 				cmd_med = ["mediainfo", "--Inform=Video;%FrameCount%", media.path]
 				frames = float(check_output(cmd_med))
 				
-				print media.get_flags()
-				
-				exit(1)
 				pipe = Popen(cmd,stderr=PIPE,close_fds=True)
 				fcntl.fcntl(pipe.stderr.fileno(),fcntl.F_SETFL,fcntl.fcntl(pipe.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK)
 							
