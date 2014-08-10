@@ -58,10 +58,10 @@ Default Options
 * x264tune = film
 
 Note: By creating m4v-files the audio stream layout will look like this:
-    map 0:1 to 0:1 AAC
-    map 0:1 to 0:2 AC3
-    map 0:2 to 0:3 AAC
-    map 0:2 to 0:4 AC3
+* map 0:1 to 0:1 AAC
+* map 0:1 to 0:2 AC3
+* map 0:2 to 0:3 AAC
+* map 0:2 to 0:4 AC3
 
 Required Programs
 -----------------
