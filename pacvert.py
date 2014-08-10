@@ -7,6 +7,9 @@
 	
 	author: sonic.y3k at googlemail dot com
 	
+	Licensed under the GNU General Public License Version 2 (GNU GPL v2),
+        available at: http://www.gnu.org/licenses/gpl-2.0.txt
+	
 	(c) 2014
 """
 
@@ -24,6 +27,7 @@ import re			# Regular Expressions
 import string		# Remove unicode data
 import select
 import shlex
+import argparse
 
 import fcntl
 from progressbar import *
@@ -44,7 +48,7 @@ import urllib2 # Check for new versions from the repo
 # Global Variables in all caps #
 ################################
 
-VERSION = 1.9;
+VERSION = 2.0;
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -59,34 +63,13 @@ GR = '\033[37m' # gray
 if not os.uname()[0].startswith("Linux") and not 'Darwin' in os.uname()[0]:
 	print (O+' [!]'+R+' WARNING:'+G+' Pacvert'+W+' must be run on '+O+'Linux/OSX'+W)
 	exit(1)
-	
-# Create temporary directory to work in
-from tempfile import mkdtemp
-temp = mkdtemp(prefix='pacvert')
-if not temp.endswith(os.sep):
-	temp += os.sep
+
 	
 # /dev/null, send output from programs so they don't print to screen.
 DN = open(os.devnull, 'w')
 
 #List for all files.
 TOCONVERT = []
-
-#File extensions to look for
-SEARCHEXT = [".avi",".flv",".mov",".mp4",".mpeg",".mpg",".ogv",".wmv",".m2ts",".rmvb",".rm",".3gp",".m4a",".3g2",".mj2",".asf",".divx",".vob",".mkv"]
-
-#Default Values
-DEFAULT_CRF=18.0
-DEFAULT_FILEFORMAT="m4v"
-DEFAULT_OUTPUTDIR="output"
-DEFAULT_DELETEFILE=False
-
-if os.uname()[0].startswith("Darwin"):
-	DEFAULT_AACLIB="libfaac"
-	DEFAULT_AC3LIB="ac3"
-elif os.uname()[0].startswith("Linux"):
-	DEFAULT_AACLIB="aac -strict -2"
-	DEFAULT_AC3LIB="ac3"
 
 ###################
 # DATA STRUCTURES #
@@ -253,10 +236,182 @@ class MediaInfo:
 			inp=inp+" -i "+i
 		return str("ffmpeg "+inp+self.streammap+self.streamopt)
 
+class RunConfiguration:
+	"""
+		Configuration
+	"""
+	def __init__(self):
+		#File extensions to look for
+		self.SEARCHEXT = [".avi",".flv",".mov",".mp4",".mpeg",".mpg",".ogv",".wmv",".m2ts",".rmvb",".rm",".3gp",".m4a",".3g2",".mj2",".asf",".divx",".vob",".mkv"]
+
+		#Default Values
+		self.DEFAULT_CRF=18.0
+		self.DEFAULT_FILEFORMAT=""
+		self.DEFAULT_OUTPUTDIR="output"
+		self.DEFAULT_DELETEFILE=False
+		self.DEFAULT_X264PROFILE="high"
+		self.DEFAULT_X264LEVEL=4.1 
+		self.DEFAULT_X264PRESET="slow"
+		self.DEFAULT_X264TUNE="film"
+		self.DEFAULT_CROPPING=True
+		self.DEFAULT_SHUTDOWN=False
+		self.DEFAULT_CHOWN=""
+		
+		if os.uname()[0].startswith("Darwin"):
+			self.DEFAULT_AACLIB="libfaac"
+			self.DEFAULT_AC3LIB="ac3"
+		elif os.uname()[0].startswith("Linux"):
+			self.DEFAULT_AACLIB="aac -strict -2"
+			self.DEFAULT_AC3LIB="ac3"
+		
+	def ConfirmCorrectPlatform(self):
+		if not os.uname()[0].startswith("Linux") and not 'Darwin' in os.uname()[0]:
+			print O + ' [!]' + R + ' WARNING:' + G + ' pacvert' + W + ' must be run on ' + O + 'linux' + W
+			exit()
+	
+	def ConfirmRunningAsRoot(self):
+		if os.getuid() != 0:
+			print R + ' [!]' + O + ' ERROR:' + G + ' pacvert' + O + ' must be run as ' + R + 'root' + W +' for shutdown'
+			print R + ' [!]' + O + ' login as root (' + W + 'su root' + O + ') or try ' + W + 'sudo ./pacvert.py' + W
+			return False
+		else:
+			return True
+	
+	def setFormat(self, file):
+		if self.DEFAULT_FILEFORMAT == "":
+			statinfo = os.stat(file)
+			if statinfo.st_size > 5368709120:
+				self.DEFAULT_FILEFORMAT="mkv"
+			else:
+				self.DEFAULT_FILEFORMAT="m4v"
+	
+	def CreateTempFolder(self):
+		"""
+			Creates temporary directory
+		"""
+		from tempfile import mkdtemp
+		self.temp = mkdtemp(prefix='pacvert')
+		if not self.temp.endswith(os.sep):
+			self.temp += os.sep
+	
+	def exit_gracefully(self,code=0):
+		"""
+			We may exit the program at any time.
+			We want to remove the temp folder and any files contained within it.
+			Removes the temp files/folder and exists with error code "code".
+		"""
+		# Remove temp files and folder
+		if os.path.exists(self.temp):
+			rmtree(self.temp)
+
+		print (R+" [!]"+W+" quitting")
+		print ''
+		
+		exit(code)
+	
+	def handle_args(self):
+		"""
+			Handles command-line arguments, sets global variables.
+		"""
+		opt_parser = self.build_opt_parser()
+		options = opt_parser.parse_args()
+		
+		try:
+			if options.directory:
+				print GR + ' [+]' + W + ' changing output directory to: \"' + G + options.directory + W + '\".'
+				self.DEFAULT_OUTPUTDIR = options.directory
+				
+			if options.ext and (options.ext == "m4v" or options.ext == "mkv"):
+				print GR + ' [+]' + W + ' changing output file extension to: \"' + G + options.ext + W + '\".'
+				self.DEFAULT_FILEFORMAT = options.ext
+				
+			if options.rmfile:
+				print GR + ' [+]' + W + ' deleting original file afterwards.'+ W
+				self.DEFAULT_DELETEFILE = True
+				
+			if options.crf:
+				print GR + ' [+]' + W +' changing crf to: \"' + G + str(options.crf) + W + '\".'
+				self.DEFAULT_CRF = options.crf
+				
+			if options.x264profile:
+				print GR + ' [+]' + W + ' changing x264-preset to: \"' + G + options.x264preset + W + '\".'
+				self.DEFAULT_X264PROFILE = options.x264preset
+				
+			if options.x264level:
+				print GR + ' [+]' + W + ' changing x264-level to: \"' + G + options.x264level + W + '\".'
+				self.DEFAULT_X264LEVEL = options.x264level
+				
+			if options.x264preset:
+				print GR + ' [+]' + W + ' changing x264-preset to: \"' + G + options.x264preset + W + '\".'
+				self.DEFAULT_X264PRESET = options.x264preset
+				
+			if options.x264tune:
+				print GR + ' [+]' + W + ' changing x264-tune to: \"' + G + options.x264tune + W + '\".'
+				self.DEFAULT_X264TUNE = options.x264tune
+			
+			if not options.nocrop:
+				print GR + ' [+]' + W + ' disable cropping'+ W + '.'
+				self.DEFAULT_CROPPING=options.nocrop
+				
+			if options.shutdown:
+				if options.shutdown and self.ConfirmRunningAsRoot():
+					print GR + ' [+]' + W + ' enabling shutdown'+ W + '.'
+					self.DEFAULT_SHUTDOWN=options.shutdown
+				else:
+					print R + ' [!]' + W + ' shutdown '+ O + 'needs'+ W +' chown flag.'
+					self.exit_gracefully(1)
+					
+			if options.chown:
+				from pwd import getpwnam
+				try:
+					t = getpwnam(options.chown)
+				except KeyError:
+					print R + ' [!]' + W + ' user '+ O + options.chown + W +' does not exist.'
+					self.exit_gracefully(1)
+					
+				print GR + ' [+]' + W + ' changing user to: \"' + G + options.chown + W + '\".'
+				self.DEFAULT_CHOWN=options.chown
+		except IndexError:
+			print '\nindexerror\n\n'
+
+	def build_opt_parser(self):
+		"""
+			Options are doubled for backwards compatability; will be removed soon and
+			fully moved to GNU-style
+		"""
+		option_parser = argparse.ArgumentParser()
+		# set commands
+		command_group = option_parser.add_argument_group('COMMAND')
+		command_group.add_argument('--crf', help='Change crf-video value to <float>.', action='store', type=float, dest='crf')
+		command_group.add_argument('--chown', help='Change output user.', action='store', dest='chown')
+		command_group.add_argument('--ext', help='Change output extension.', action='store', dest='ext', choices=['m4v','mkv'])
+		command_group.add_argument('--nocrop', help='Disable cropping', action='store_false', dest='nocrop')
+		command_group.add_argument('--outdir', help='Change outdir to <directory>.', action='store', dest='directory')
+		command_group.add_argument('--rmfile', help='Remove original video.', action='store_true', dest='rmfile')
+		command_group.add_argument('--shutdown', help='Shutdown after finishing all jobs.', action='store_true', dest='shutdown')
+		command_group.add_argument('--x264level', help='Change x264-level', action='store', type=float, dest='x264level', choices=['1','1b','1.1','...','4.1','4.2', '5', '5.1'])
+		command_group.add_argument('--x264preset', help='Change x264-preset', action='store', dest='x264preset', choices=['ultrafast','superfast','veryfast','faster','fast','medium','slow','slower','veryslow','placebo'])
+		command_group.add_argument('--x264profile', help='Change x264-profile', action='store', dest='x264profile', choices=['baseline','main','high','high10','high422','high444'])
+		command_group.add_argument('--x264tune', help='Change x264-tune', action='store', dest='x264tune', choices=['film','animation','grain','stillimage','psnr','ssim','fastdecode','zerolatency'])
+		
+		return option_parser
+        
 ##################
 # MAIN FUNCTIONS #
 ##################
 
+def help():
+	"""
+		Prints help screen
+	"""
+	head = W
+	sw = G
+	var = GR
+	des = W
+	de = G
+	print head + '   COMMANDS' + W
+	print sw + '\t--outdir ' + var + '<directory>\t' + des + 'Change output [directory].' + var + '<file>' + des + ' for convertet files.' + W
+	
 def banner():
 	"""
 		Displays ASCII art
@@ -313,7 +468,7 @@ def internet_on():
 	except urllib2.URLError as err: pass
 	return False
 
-def upgrade():
+def upgrade(RUN_CONFIG):
 	"""
 		Checks for new Version, promts to upgrade, then
 		replaces this script with the latest from the repo.
@@ -345,7 +500,7 @@ def upgrade():
 
 				if page == '':
 					print (R+' [+] '+O+'unable to download latest version'+W)
-					exit_gracefully(1)
+					RUN_CONFIG.exit_gracefully(1)
 
 				# Create/save the new script
 				f=open('pacvert_new.py','w')
@@ -371,13 +526,13 @@ def upgrade():
 				returncode = call(['chmod','+x','update_pacvert.sh'])
 				if returncode != 0:
 					print (R+' [!]'+O+' permission change returned unexpected code: '+str(returncode)+W)
-					exit_gracefully(1)
+					RUN_CONFIG.exit_gracefully(1)
 
 				# Run the script
 				returncode = call(['sh','update_pacvert.sh'])
 				if returncode != 0:
 					print (R+' [!]'+O+' upgrade script returned unexpected code: '+str(returncode)+W)
-					exit_gracefully(1)
+					RUN_CONFIG.exit_gracefully(1)
 
 				print (GR+' [+] '+G+'updated!'+W+' type "./' + this_file + '" to run again')
 			else:
@@ -385,7 +540,7 @@ def upgrade():
 
 	except KeyboardInterrupt:
 		print (R+'\n (^C)'+O+' Pacvert upgrade interrupted'+W)
-		exit_gracefully(0)
+		RUN_CONFIG.exit_gracefully(0)
 
 def program_exists(program):
 	"""
@@ -400,7 +555,7 @@ def program_exists(program):
         
 	return not (txt[1].strip() == '' or txt[1].find('no %s in' % program) != -1)
 
-def initial_check():
+def initial_check(RUN_CONFIG):
 	"""
 		Ensures required programs are installed.
 	"""
@@ -412,7 +567,7 @@ def initial_check():
 			print (R+"    "+O+"   install with "+C+"brew install ffmpeg"+W)
 		else:
 			print (R+"    "+O+"   available at "+C+"https://ffmpeg.org/"+W)
-		exit_gracefully(1)
+		RUN_CONFIG.exit_gracefully(1)
 		
 	if not program_exists("mplayer"):
 		print (R+" [!]"+O+" required program not found: mplayer"+W)
@@ -420,7 +575,7 @@ def initial_check():
 			print (R+"    "+O+"   install with "+C+"brew install mplayer"+W)
 		else:
 			print (R+"    "+O+"   available at "+C+"http://mplayerhq.hu/"+W)
-		exit_gracefully(1)
+		RUN_CONFIG.exit_gracefully(1)
 	
 	if not program_exists("mkvextract"):
 		print (R+" [!]"+O+" required program not found: mkvextract"+W)
@@ -429,7 +584,7 @@ def initial_check():
 			print (R+"    "+O+"   install with "+C+"brew install mkvtoolnix"+W)
 		else:
 			print (R+"    "+O+"   available at "+C+"http://bunkus.org/videotools/mkvtoolnix/"+W)
-		exit_gracefully(1)
+		RUN_CONFIG.exit_gracefully(1)
 		
 	if not program_exists("bdsup2sub"):
 		print (R+" [!]"+O+" required program not found: bdsup2sub"+W)
@@ -437,7 +592,7 @@ def initial_check():
 			print (R+"    "+O+"   install with "+C+"brew install https://raw.githubusercontent.com/Sonic-Y3k/homebrew/master/bdsup2sub++.rb"+W)
 		else:
 			print (R+"    "+O+"   available at "+C+"http://forum.doom9.org/showthread.php?p=1613303"+W)
-		exit_gracefully(1)
+		RUN_CONFIG.exit_gracefully(1)
 	
 	transcodes = ["tcextract", "subtitle2pgm", "srttool"]
 	for transcode in transcodes:
@@ -448,7 +603,7 @@ def initial_check():
 			print (R+"    "+O+"   install with "+C+"brew install https://raw.githubusercontent.com/Sonic-Y3k/homebrew/master/transcode.rb"+W)
 		else:
 			print (R+"    "+O+"   available at "+C+"http://www.linuxfromscratch.org/blfs/view/svn/multimedia/transcode.html"+W)
-		exit_gracefully(1)
+		RUN_CONFIG.exit_gracefully(1)
 	
 	if not program_exists("tesseract"):
 		print (R+" [!]"+O+" required program not found: tesseract"+W)
@@ -457,7 +612,7 @@ def initial_check():
 		else:
 			print (R+"    "+O+"   available at "+C+"http://code.google.com/p/tesseract-ocr/"+W)
 			print (R+"    "+O+"   please install with "+C+"all"+W+" available language packs.")
-		exit_gracefully(1)
+		RUN_CONFIG.exit_gracefully(1)
 	
 	if not program_exists("vobsub2srt"):
 		print (R+" [!]"+O+" required program not found: vobsub2srt"+W)
@@ -465,17 +620,9 @@ def initial_check():
 			print (R+"    "+O+"   install with "+C+"brew install https://raw.githubusercontent.com/ruediger/VobSub2SRT/master/packaging/vobsub2srt.rb --HEAD vobsub2srt"+W)
 		else:
 			print (R+"    "+O+"   available at "+C+"https://github.com/ruediger/VobSub2SRT"+W)
-		exit_gracefully(1)
-	
-	if not program_exists("jsawk"):
-		print (R+" [!]"+O+" required program not found: jsawk"+W)
-		if program_exists("brew"):
-			print (R+"    "+O+"   install with "+C+"brew install jsawk"+W)
-		else:
-			print (R+"    "+O+"   available at "+C+"http://github.com/micha/jsawk"+W)
-		exit_gracefully(1)
+		RUN_CONFIG.exit_gracefully(1)
 
-def find_files():
+def find_files(RUN_CONFIG):
 	"""
 		Locate files that need a conversion
 	"""
@@ -483,7 +630,7 @@ def find_files():
 	for root, dirnames, filenames in os.walk(os.getcwd()):
 		for filename in filenames:
 			file_ext = os.path.splitext(filename)
-			if file_ext[1] in SEARCHEXT and root != os.getcwd()+"/output":
+			if file_ext[1] in RUN_CONFIG.SEARCHEXT and root != os.getcwd()+"/output":
 				TOCONVERT.append(MediaInfo(root+"/"+filename, file_ext[0]))		
 	
 	filecount = len(TOCONVERT)
@@ -491,7 +638,7 @@ def find_files():
 		print (GR+" [-]"+W+" found "+C+str(filecount)+W+" files.")
 	else:
 		print (R+" [!]"+W+" found "+R+str(filecount)+W+" files.")
-		exit_gracefully(0)
+		RUN_CONFIG.exit_gracefully(0)
 		
 def analyze_crop(file):
 	"""
@@ -541,7 +688,7 @@ def analyze_crop(file):
 				ret[3] = c[3]
 	except:
 		print (R+" [!]"+W+" there was a problem in the cropping department.")
-		exit_gracefully(1)	
+		RUN_CONFIG.exit_gracefully(1)	
 	return ret[0]+":"+ret[1]+":"+ret[2]+":"+ret[3]
 
 def convertSubtitle(path,index,lang):
@@ -618,9 +765,9 @@ def convertSubtitle(path,index,lang):
 		
 	except CalledProcessError, e:
 		print e
-		exit_gracefully(1)
+		RUN_CONFIG.exit_gracefully(1)
 	
-def analyze_files():
+def analyze_files(RUN_CONFIG):
 	"""
 		Analyze the files we found for
 		cropping and subtitles and add
@@ -629,7 +776,7 @@ def analyze_files():
 	response = raw_input(GR+" [+]"+W+" do you want to analyze the files (this could take some time)? (y/n): ")
 	if not response.lower().startswith("y"):
 		print (GR+" [-]"+W+" analyzing "+O+"aborted"+W)
-		exit_gracefully(0)
+		RUN_CONFIG.exit_gracefully(0)
 	
 	time_started = time.time()
 	for media in TOCONVERT:
@@ -661,24 +808,33 @@ def analyze_files():
 				for c in media.streams:
 					if c.isVideo():
 						media.add_streammap("-map 0:"+str(c.index))
-						if crf < DEFAULT_CRF:
+						if crf < RUN_CONFIG.DEFAULT_CRF:
 							#No Copy, need to check cropping!
-							media.add_streamopt("-c:v:0 libx264 -profile:v high -level 4.1 -preset slow -crf "+str(DEFAULT_CRF)+" -tune film -filter:v crop="+analyze_crop(media.path)+" -metadata:s:v:0 language="+c.language())
+							media.add_streamopt("-c:v:0 libx264")
+							media.add_streamopt("-profile:v "+RUN_CONFIG.DEFAULT_X264PROFILE)
+							media.add_streamopt("-level "+str(RUN_CONFIG.DEFAULT_X264LEVEL))
+							media.add_streamopt("-preset "+RUN_CONFIG.DEFAULT_X264PRESET)
+							media.add_streamopt("-tune "+RUN_CONFIG.DEFAULT_X264TUNE)
+							media.add_streamopt("-crf "+str(RUN_CONFIG.DEFAULT_CRF))
+							media.add_streamopt("-metadata:s:v:0 language="+c.language())
+							
+							if RUN_CONFIG.DEFAULT_CROPPING:
+								media.add_streamopt("-filter:v crop="+analyze_crop(media.path))
 						else:
 							#We can copy the video stream
 							media.add_streamopt("-c:v:0 copy -metadata:s:v:0 language="+c.language())
 				
 				for c in media.streams:
 					if c.isAudio():
-						if DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "ac3" or c.codec() == "dca" or c.codec() == "truehd"):
+						if RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "ac3" or c.codec() == "dca" or c.codec() == "truehd"):
 							media.add_streammap("-map 0:"+str(c.index))
 							media.add_streamopt("-c:a:"+str(media.audCount)+" copy -metadata:s:a:"+str(media.audCount)+" language="+c.language())
 							media.audCount+=1
-						elif DEFAULT_FILEFORMAT == "mkv" and (c.codec() != "ac3" and c.codec() != "dca" and c.codec() != "truehd"):
+						elif RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and (c.codec() != "ac3" and c.codec() != "dca" and c.codec() != "truehd"):
 							media.add_streammap("-map 0:"+str(c.index))
-							media.add_streamopt("-c:a:"+str(media.audCount)+" "+DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+							media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
 							media.audCount+=1
-						elif DEFAULT_FILEFORMAT == "m4v" and (c.codec() == "ac3" or c.codec() == "aac"):
+						elif RUN_CONFIG.DEFAULT_FILEFORMAT == "m4v" and (c.codec() == "ac3" or c.codec() == "aac"):
 							doubleLang = 0
 							for d in media.streams:
 								if d.isAudio() and ((c.codec() == "ac3" and d.codec() == "aac") or (c.codec() == "aac" and d.codec() == "ac3")) and c.language() == d.language():
@@ -686,7 +842,7 @@ def analyze_files():
 							
 							if doubleLang == 0 and c.codec() == "ac3":
 								media.add_streammap("-map 0:"+str(c.index)+" -map 0:"+str(c.index))
-								media.add_streamopt("-c:a:"+str(media.audCount)+" "+DEFAULT_AACLIB+" -b:a:"+str(media.audCount)+" 320k -ac:"+str(media.audCount+1)+" 2 -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+								media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AACLIB+" -b:a:"+str(media.audCount)+" 320k -ac:"+str(media.audCount+1)+" 2 -metadata:s:a:"+str(media.audCount)+" language="+c.language())
 								media.audCount+=1
 								media.add_streamopt("-c:a:"+str(media.audCount)+" copy -metadata:s:a:"+str(media.audCount)+" language="+c.language())
 								media.audCount+=1
@@ -694,7 +850,7 @@ def analyze_files():
 								media.add_streammap("-map 0:"+str(c.index)+" -map 0:"+str(c.index))
 								media.add_streamopt("-c:a:"+str(media.audCount)+" copy -metadata:s:a:"+str(media.audCount)+" language="+c.language())
 								media.audCount+=1
-								media.add_streamopt("-c:a:"+str(media.audCount)+" "+DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount+1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+								media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount+1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
 								media.audCount+=1
 							else:
 								media.add_streammap("-map 0:"+str(c.index))
@@ -702,18 +858,18 @@ def analyze_files():
 								media.audCount+=1								
 						else:
 							media.add_streammap("-map 0:"+str(c.index)+" -map 0:"+str(c.index))
-							media.add_streamopt("-c:a:"+str(media.audCount)+" "+DEFAULT_AACLIB+" -b:a:"+str(media.audCount)+" 320k -ac:"+str(media.audCount+1)+" 2 -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+							media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AACLIB+" -b:a:"+str(media.audCount)+" 320k -ac:"+str(media.audCount+1)+" 2 -metadata:s:a:"+str(media.audCount)+" language="+c.language())
 							media.audCount+=1
-							media.add_streamopt("-c:a:"+str(media.audCount)+" "+DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount+1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+							media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount+1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
 							media.audCount+=1
 				
 				for c in media.streams:
 					if c.isSubtitle():
-						if (DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "ass" or c.codec() == "srt" or c.codec() == "ssa")) or (DEFAULT_FILEFORMAT == "m4v" and c.codec() == "mov_text"):
+						if (RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "ass" or c.codec() == "srt" or c.codec() == "ssa")) or (RUN_CONFIG.DEFAULT_FILEFORMAT == "m4v" and c.codec() == "mov_text"):
 							media.add_streammap("-map 0:"+str(c.index))
 							media.add_streamopt("-c:s:"+str(media.subCount)+" copy -metadata:s:s:"+str(media.subCount)+" language="+c.language())
 							media.subCount+=1
-						elif DEFAULT_FILEFORMAT == "mkv" and c.codec() == "pgssub":
+						elif RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and c.codec() == "pgssub":
 							#Convert to srt
 							print (GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that need to be "+C+"converted"+W)
 							newSub=convertSubtitle(media.path, c.index, c.language())
@@ -725,7 +881,7 @@ def analyze_files():
 								media.add_streamopt("-c:s:"+str(media.subCount)+" copy -metadata:s:s:"+str(media.subCount)+" language="+c.language())
 								media.subCount+=1
 								
-						elif DEFAULT_FILEFORMAT == "m4v" and c.codec() == "pgssub":
+						elif RUN_CONFIG.DEFAULT_FILEFORMAT == "m4v" and c.codec() == "pgssub":
 							#Convert to srt and then to mov_text
 							print (GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that need to be "+C+"converted"+W)
 							newSub=convertSubtitle(media.path,c.index, c.language())
@@ -738,7 +894,7 @@ def analyze_files():
 								media.subCount+=1
 						else:
 							media.add_streammap("-map 0:"+str(c.index))
-							if DEFAULT_FILEFORMAT == "mkv":
+							if RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv":
 								media.add_streamopt("-c:s:"+str(media.subCount)+" srt -metadata:s:s:"+str(media.subCount)+" language="+c.language())
 							else:
 								media.add_streamopt("-c:s:"+str(media.subCount)+" mov_text -metadata:s:s:"+str(media.subCount)+" language="+c.language())
@@ -749,13 +905,13 @@ def analyze_files():
 				print (R+" [!]"+W+" "+str(e))
 				TOCONVERT.remove(media)
 		else:
-			exit_gracefully(1)
+			RUN_CONFIG.exit_gracefully(1)
 	
 	time_ended = time.time()
 	time_total = time_ended-time_started
 	print (GR+" [-]"+W+" analyzing done. This took us "+str(datetime.timedelta(seconds=time_total))+" "+W)
 	
-def convert_files(callback=None):
+def convert_files(RUN_CONFIG,callback=None):
 	"""
 		Finally convert all the
 		files.
@@ -765,14 +921,17 @@ def convert_files(callback=None):
 	for media in TOCONVERT:
 		if os.path.isfile(media.path):
 			try:
-				if not os.path.exists(DEFAULT_OUTPUTDIR):
-					os.makedirs(DEFAULT_OUTPUTDIR)
-			
+				if not os.path.exists(RUN_CONFIG.DEFAULT_OUTPUTDIR):
+					os.makedirs(RUN_CONFIG.DEFAULT_OUTPUTDIR)
+					if RUN_CONFIG.DEFAULT_CHOWN != "":
+						os.system("sudo chown -R "+RUN_CONFIG.DEFAULT_CHOWN+" "+RUN_CONFIG.DEFAULT_OUTPUTDIR)
+				RUN_CONFIG.setFormat(media.path)	
+
 				cmd = media.get_flags().split(" ")
 				cmd.append("-y")
-				#cmd.append("-t")
-				#cmd.append("00:01:00.00")
-				cmd.append(DEFAULT_OUTPUTDIR+"/"+media.name+"."+DEFAULT_FILEFORMAT)
+				cmd.append("-t")
+				cmd.append("00:01:00.00")
+				cmd.append(RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT)
 				widgets = [GR+" [-]"+W+" starting conversion\t",' ',Percentage(), ' ', Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()] #see docs for other options
 				cmd_med = ["mediainfo", "--Inform=Video;%FrameCount%", media.path]
 				frames = float(check_output(cmd_med))
@@ -806,44 +965,45 @@ def convert_files(callback=None):
 			except CalledProcessError, e:
 				print (R+" [!]"+W+" something doesn't work with "+O+media.path+W+":"+W)
 				print (R+" [!]"+W+" "+str(e))
-				exit_gracefully(1)
-		newframes=float(check_output(["mediainfo", "--Inform=Video;%FrameCount%", DEFAULT_OUTPUTDIR+"/"+media.name+"."+DEFAULT_FILEFORMAT]))
+				RUN_CONFIG.exit_gracefully(1)
+		newframes=float(check_output(["mediainfo", "--Inform=Video;%FrameCount%", RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT]))
 		diff=abs(frames-newframes)
-		if DEFAULT_DELETEFILE and diff <= 10:
+		if RUN_CONFIG.DEFAULT_DELETEFILE and diff <= 10:
 			print (O+" [W]"+W+" passed sanity check - deleting file"+W)
 			os.remove(media.path)
-		elif DEFAULT_DELETEFILE and diff > 10:
+		elif RUN_CONFIG.DEFAULT_DELETEFILE and diff > 10:
 			print (R+" [!]"+W+" failed sanity check - keeping file"+W)
 		else:
-			print (O+" [W]"+W+" sanity check disabled - keeping file"+W)
-			
+			print (GR+" [W]"+W+" sanity check disabled - keeping file"+W)
+		
+		if RUN_CONFIG.DEFAULT_CHOWN != "":
+			os.system("sudo chown "+RUN_CONFIG.DEFAULT_CHOWN+" "+RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT)
 	time_ended = time.time()
 	time_total = time_ended-time_started
 	print (GR+" [-]"+W+" converting done. This took us "+str(datetime.timedelta(seconds=time_total))+" "+W)
 	print (R+" [-]"+W+" bye bye."+W)
 
-def exit_gracefully(code=0):
-	"""
-		May exit the program at any given time.
-	"""
-	# Remove temp files and folder
-	if os.path.exists(temp):
-		rmtree(temp)  # delete directory
 
-	print (R+" [!]"+W+" quitting") # pacvert will now exit"
-	print ''
-	# GTFO
-	exit(code)
 
 if __name__ == '__main__':
+	RUN_CONFIG = RunConfiguration()
 	try:
 		banner()
-		upgrade()
-		initial_check()
-		find_files()
-		analyze_files()
-		convert_files()
+		RUN_CONFIG.CreateTempFolder()
+		RUN_CONFIG.handle_args()
+		RUN_CONFIG.ConfirmCorrectPlatform()
+		
+		upgrade(RUN_CONFIG)
+		initial_check(RUN_CONFIG)
+		find_files(RUN_CONFIG)
+		analyze_files(RUN_CONFIG)
+		convert_files(RUN_CONFIG)
+		
+		if RUN_CONFIG.DEFAULT_SHUTDOWN and RUN_CONFIG.ConfirmRunningAsRoot():
+			print "imaging me shutdown"
+			#os.system('sudo shutdown now')
+
 	except KeyboardInterrupt: print (R+'\n (^C)'+O+' interrupted\n'+W)
 	except EOFError:          print (R+'\n (^D)'+O+' interrupted\n'+W)
 
-	exit_gracefully(0)
+	RUN_CONFIG.exit_gracefully(0)
