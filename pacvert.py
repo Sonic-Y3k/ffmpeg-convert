@@ -929,8 +929,8 @@ def convert_files(RUN_CONFIG,callback=None):
 
 				cmd = media.get_flags().split(" ")
 				cmd.append("-y")
-				cmd.append("-t")
-				cmd.append("00:01:00.00")
+				#cmd.append("-t")
+				#cmd.append("00:01:00.00")
 				cmd.append(RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT)
 				widgets = [GR+" [-]"+W+" starting conversion\t",' ',Percentage(), ' ', Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()] #see docs for other options
 				cmd_med = ["mediainfo", "--Inform=Video;%FrameCount%", media.path]
