@@ -382,8 +382,8 @@ class RunConfiguration:
 		option_parser = argparse.ArgumentParser()
 		# set commands
 		command_group = option_parser.add_argument_group('COMMAND')
-		command_group.add_argument('--crf', help='Change crf-video value to <float>.', action='store', type=float, dest='crf')
 		command_group.add_argument('--chown', help='Change output user.', action='store', dest='chown')
+		command_group.add_argument('--crf', help='Change crf-video value to <float>.', action='store', type=float, dest='crf')
 		command_group.add_argument('--ext', help='Change output extension.', action='store', dest='ext', choices=['m4v','mkv'])
 		command_group.add_argument('--nocrop', help='Disable cropping', action='store_false', dest='nocrop')
 		command_group.add_argument('--outdir', help='Change outdir to <directory>.', action='store', dest='directory')
