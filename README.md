@@ -32,8 +32,8 @@ Usage:
 >    
 >
     COMMAND:
-    --crf CRF             Change crf-video value to <float>.
     --chown CHOWN         Change output user.
+    --crf CRF             Change crf-video value to <float>.
     --ext {m4v,mkv}       Change output extension.
     --nocrop              Disable cropping
     --outdir DIRECTORY    Change outdir to <directory>.
