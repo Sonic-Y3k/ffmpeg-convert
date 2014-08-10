@@ -48,6 +48,21 @@ Usage:
     --x264tune {film,animation,grain,stillimage,psnr,ssim,fastdecode,zerolatency}
                           Change x264-tune
 
+Default Options
+---------------
+* crf = 18
+* ext = m4v for files < 5GB and mkv for files > 5gb
+* x264level = 4.1
+* x264preset = slow
+* x264profile = high
+* x264tune = film
+
+Note: By creating m4v-files the audio stream layout will look like this:
+    map 0:1 to 0:1 AAC
+    map 0:1 to 0:2 AC3
+    map 0:2 to 0:3 AAC
+    map 0:2 to 0:4 AC3
+
 Required Programs
 -----------------
 * [python2](https://www.python.org/) - Pacvert is a Python script and requires Python to run.
