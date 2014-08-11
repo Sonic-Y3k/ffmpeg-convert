@@ -53,6 +53,7 @@ Default Options
 ---------------
 * crf = 18
 * ext = m4v for files < 5GB and mkv for files > 5gb
+* nice = 15
 * x264level = 4.1
 * x264preset = slow
 * x264profile = high

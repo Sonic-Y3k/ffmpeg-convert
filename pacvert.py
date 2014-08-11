@@ -789,7 +789,12 @@ def analyze_files(RUN_CONFIG):
 		RUN_CONFIG.exit_gracefully(0)
 	
 	time_started = time.time()
+	widgets = [GR+" [-]"+W+" analyzing files: ", Percentage(),' [', ETA(), ']'] #see docs for other options	
+	pbar = ProgressBar(widgets=widgets, maxval=len(TOCONVERT),redirect_stdout=True,redirect_stderr=True)
+	pbar.start()
+	num=0
 	for media in TOCONVERT:
+		
 		if os.path.isfile(media.path):
 			try:
 				RUN_CONFIG.setFormat(media.path)
@@ -834,7 +839,7 @@ def analyze_files(RUN_CONFIG):
 						else:
 							#We can copy the video stream
 							media.add_streamopt("-c:v:0 copy -metadata:s:v:0 language="+c.language())
-				
+				pbar.update(num+0.3)
 				for c in media.streams:
 					if c.isAudio():
 						if RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "ac3" or c.codec() == "dca" or c.codec() == "truehd"):
@@ -873,7 +878,7 @@ def analyze_files(RUN_CONFIG):
 							media.audCount+=1
 							media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount+1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
 							media.audCount+=1
-				
+				pbar.update(num+0.6)
 				for c in media.streams:
 					if c.isSubtitle():
 						if (RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "ass" or c.codec() == "srt" or c.codec() == "ssa")) or (RUN_CONFIG.DEFAULT_FILEFORMAT == "m4v" and c.codec() == "mov_text"):
@@ -910,7 +915,8 @@ def analyze_files(RUN_CONFIG):
 							else:
 								media.add_streamopt("-c:s:"+str(media.subCount)+" mov_text -metadata:s:s:"+str(media.subCount)+" language="+c.language())
 							media.subCount+=1
-							
+				pbar.update(num)
+				num+=1			
 			except CalledProcessError, e:
 				print (R+" [!]"+W+" something doesn't work with "+O+media.path+W+":"+W)
 				print (R+" [!]"+W+" "+str(e))
@@ -918,9 +924,10 @@ def analyze_files(RUN_CONFIG):
 		else:
 			RUN_CONFIG.exit_gracefully(1)
 	
+	pbar.finish()
 	time_ended = time.time()
 	time_total = time_ended-time_started
-	print (GR+" [-]"+W+" analyzing done. This took us "+str(datetime.timedelta(seconds=time_total))+" "+W)
+	#print (GR+" [-]"+W+" analyzing done. This took us "+str(datetime.timedelta(seconds=time_total))+" "+W)
 	
 def convert_files(RUN_CONFIG,callback=None):
 	"""
