@@ -35,6 +35,7 @@ Usage:
     --chown CHOWN         Change output user.
     --crf CRF             Change crf-video value to <float>.
     --ext {m4v,mkv}       Change output extension.
+    --nice NICE           Change nice value.
     --nocrop              Disable cropping
     --outdir DIRECTORY    Change outdir to <directory>.
     --rmfile              Remove original video.

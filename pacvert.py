@@ -230,11 +230,27 @@ class MediaInfo:
 	def add_streamopt(self, opt):
 		self.streamopt += " "+opt
 	
-	def get_flags(self):
-		inp="-i "+self.path
+	def get_flags(self,nice):
+		cmd=[]
+		cmd.append("nice")
+		cmd.append("-n")
+		cmd.append(str(nice))
+		cmd.append("ffmpeg")
+		cmd.append("-i")
+		cmd.append(self.path)
 		for i in self.addFiles:
-			inp=inp+" -i "+i
-		return str("ffmpeg "+inp+self.streammap+self.streamopt)
+			cmd.append("-i")
+			cmd.append(i)
+		cmd.extend(self.streammap.split(" "))
+		cmd.extend(self.streamopt.split(" "))
+		
+		while True:
+			try:
+				cmd.remove("")
+			except ValueError:
+				break
+		
+		return cmd
 
 class RunConfiguration:
 	"""
@@ -245,17 +261,18 @@ class RunConfiguration:
 		self.SEARCHEXT = [".avi",".flv",".mov",".mp4",".mpeg",".mpg",".ogv",".wmv",".m2ts",".rmvb",".rm",".3gp",".m4a",".3g2",".mj2",".asf",".divx",".vob",".mkv"]
 
 		#Default Values
-		self.DEFAULT_CRF=18.0
-		self.DEFAULT_FILEFORMAT=""
-		self.DEFAULT_OUTPUTDIR="output"
+		self.DEFAULT_CHOWN=""
+		self.DEFAULT_CROPPING=True
 		self.DEFAULT_DELETEFILE=False
-		self.DEFAULT_X264PROFILE="high"
+		self.DEFAULT_FILEFORMAT=""
+		self.DEFAULT_NICE=15
+		self.DEFAULT_OUTPUTDIR="output"
+		self.DEFAULT_SHUTDOWN=False
 		self.DEFAULT_X264LEVEL=4.1 
 		self.DEFAULT_X264PRESET="slow"
+		self.DEFAULT_X264PROFILE="high"
 		self.DEFAULT_X264TUNE="film"
-		self.DEFAULT_CROPPING=True
-		self.DEFAULT_SHUTDOWN=False
-		self.DEFAULT_CHOWN=""
+		self.DEFAULT_CRF=18.0
 		
 		if os.uname()[0].startswith("Darwin"):
 			self.DEFAULT_AACLIB="libfaac"
@@ -371,6 +388,9 @@ class RunConfiguration:
 					
 				print GR + ' [+]' + W + ' changing user to: \"' + G + options.chown + W + '\".'
 				self.DEFAULT_CHOWN=options.chown
+			if options.nice:
+				print GR + ' [+]' + W + ' changing nice to: \"' + G + options.nice + W + '\".'
+				self.DEFAULT_NICE = options.nice
 		except IndexError:
 			print '\nindexerror\n\n'
 
@@ -385,6 +405,7 @@ class RunConfiguration:
 		command_group.add_argument('--chown', help='Change output user.', action='store', dest='chown')
 		command_group.add_argument('--crf', help='Change crf-video value to <float>.', action='store', type=float, dest='crf')
 		command_group.add_argument('--ext', help='Change output extension.', action='store', dest='ext', choices=['m4v','mkv'])
+		command_group.add_argument('--nice', help='Change nice value.', action='store', dest='nice', type=int)
 		command_group.add_argument('--nocrop', help='Disable cropping', action='store_false', dest='nocrop')
 		command_group.add_argument('--outdir', help='Change outdir to <directory>.', action='store', dest='directory')
 		command_group.add_argument('--rmfile', help='Remove original video.', action='store_true', dest='rmfile')
@@ -917,7 +938,7 @@ def convert_files(RUN_CONFIG,callback=None):
 						os.system("sudo chown -R "+RUN_CONFIG.DEFAULT_CHOWN+" "+RUN_CONFIG.DEFAULT_OUTPUTDIR)
 				RUN_CONFIG.setFormat(media.path)	
 
-				cmd = media.get_flags().split(" ")
+				cmd = media.get_flags(RUN_CONFIG.DEFAULT_NICE)
 				cmd.append("-y")
 				#cmd.append("-t")
 				#cmd.append("00:01:00.00")
@@ -933,7 +954,7 @@ def convert_files(RUN_CONFIG,callback=None):
 				pbar = ProgressBar(widgets=widgets, maxval=frames,redirect_stdout=True,redirect_stderr=True)
 				pbar.start()
 				
-				time.sleep(2)
+				time.sleep(5)
 				while pipe.poll() is None:
 					readx = select.select([pipe.stderr.fileno()], [], [])[0]
 					if readx:
@@ -942,7 +963,7 @@ def convert_files(RUN_CONFIG,callback=None):
 							break
 						m = re.findall(r'\d+',chunk)
 						out = m[0]
-					
+						
 						if out.isdigit():
 							num = int(out)
 				
@@ -960,6 +981,8 @@ def convert_files(RUN_CONFIG,callback=None):
 			newframes=float(check_output(["mediainfo", "--Inform=Video;%FrameCount%", RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT]))
 		except ValueError:
 			newframes=0
+		#except CalledProcessError:
+		#	newframes=0
 			
 		diff=abs(frames-newframes)
 		if RUN_CONFIG.DEFAULT_DELETEFILE and diff <= 10:
