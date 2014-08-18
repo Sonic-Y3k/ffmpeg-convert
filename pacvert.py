@@ -55,7 +55,8 @@ from shutil import rmtree #Remove temp dir
 from subprocess import Popen, call, PIPE, check_output, CalledProcessError
 from signal import SIGINT, SIGTERM
 
-import urllib2 # Check for new versions from the repo
+# Check for new versions from the repo
+import urllib2
 
 ################################
 # Global Variables in all caps #
