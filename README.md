@@ -21,7 +21,8 @@ Usage:
 ------
 >
     usage: pacvert.py [-h] [--chown CHOWN] [--crf CRF] [--ext {m4v,mkv}]
-                      [--nocrop] [--outdir DIRECTORY] [--rmfile] [--shutdown]
+                      [--nocrop] [--outdir DIRECTORY] [--rmfile] 
+                      [--shutdown] [--verbose]
                       [--x264level {1,1b,1.1,1.2,1.3,2,2.1,2.2,3,3.1,3.2,4,4.1,4.2,5,5.1}]
                       [--x264preset {ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow,placebo}]
                       [--x264profile {baseline,main,high,high10,high422,high444}]
@@ -40,6 +41,7 @@ Usage:
     --outdir DIRECTORY    Change outdir to <directory>.
     --rmfile              Remove original video.
     --shutdown            Shutdown after finishing all jobs.
+    --verbose             Enable verbose mode.
     --x264level {1,1b,1.1,1.2,1.3,2,2.1,2.2,3,3.1,3.2,4,4.1,4.2,5,5.1}
                           Change x264-level
     --x264preset {ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow,placebo}
