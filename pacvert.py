@@ -61,7 +61,7 @@ import urllib2 # Check for new versions from the repo
 # Global Variables in all caps #
 ################################
 
-VERSION = 2.0;
+VERSION = 2.1;
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -945,10 +945,12 @@ def analyze_files(RUN_CONFIG):
 								print (G+" [V]"+W+"    "+O+"-c:s:"+str(media.subCount-1)+" copy -metadata:s:s:"+str(media.subCount-1)+" language="+c.language()+W)
 						elif RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "pgssub" or c.codec() == "dvdsub"):
 							#Convert to srt
+							pbar.finish()
 							print (GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that needs to be "+C+"converted"+W)
 							newSub=convertSubtitle(media.path, c.index, c.language(), c.codec(), RUN_CONFIG)
-							
+							pbar.start()
 							if newSub != "":
+								
 								media.addFiles.append(newSub)
 								media.add_streammap("-map "+str(len(media.addFiles))+":0")
 								
@@ -959,8 +961,10 @@ def analyze_files(RUN_CONFIG):
 								
 						elif RUN_CONFIG.DEFAULT_FILEFORMAT == "m4v" and (c.codec() == "pgssub" or c.codec() == "dvdsub"):
 							#Convert to srt and then to mov_text
+							pbar.finish()
 							print (GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that need to be "+C+"converted"+W)
 							newSub=convertSubtitle(media.path,c.index, c.language(), c.codec(), RUN_CONFIG)
+							pbar.start()
 							
 							if newSub != "":
 								media.addFiles.append(newSub)
