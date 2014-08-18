@@ -752,8 +752,11 @@ def convertSubtitle(path,index,lang,codec,RUN_CONFIG):
 			if "Decoding frame" in out:
 				out=out.split(" ")
 				out=out[2].split("/")
-		
-				num=round(float(out[0])/float(out[1])*100)
+				try:
+					num=round(float(out[0])/float(out[1])*100)
+				except ValueError:
+					num=0
+				
 				if num > prev and num >= 0 and num <= 100: 
 					pbar.update(num)
 					prev=num
