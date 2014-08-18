@@ -562,7 +562,8 @@ def upgrade(RUN_CONFIG):
 					print (R+' [!]'+O+' upgrade script returned unexpected code: '+str(returncode)+W)
 					RUN_CONFIG.exit_gracefully(1)
 
-				print (GR+' [+] '+G+'updated!'+W+' type "./' + this_file + '" to run again')
+				print (GR+' [+] '+G+'updated!'+W+' type "' + this_file + '" to run again')
+				RUN_CONFIG.exit_gracefully(0)
 			else:
 				print (GR+' [-]'+W+' your copy of Pacvert is '+G+'up to date'+W)
 
@@ -785,6 +786,9 @@ def convertSubtitle(path,index,lang,codec,RUN_CONFIG):
 	except CalledProcessError, e:
 		print e
 		RUN_CONFIG.exit_gracefully(1)
+	except KeyboardInterrupt:
+		print (R+'\n (^C)'+O+' Subtitle conversion interrupted'+W)
+		RUN_CONFIG.exit_gracefully(1)
 	
 def analyze_files(RUN_CONFIG):
 	"""
@@ -800,7 +804,7 @@ def analyze_files(RUN_CONFIG):
 	time_started = time.time()
 	if not RUN_CONFIG.DEFAULT_VERBOSE:
 		widgets = [GR+" [-]"+W+" analyzing files: ", Percentage(),' [', ETA(), ']'] #see docs for other options	
-		pbar = ProgressBar(widgets=widgets, maxval=len(TOCONVERT),redirect_stdout=True,redirect_stderr=True)
+		pbar = ProgressBar(widgets=widgets, maxval=len(TOCONVERT),redirect_stdout=False,redirect_stderr=False)
 		pbar.start()
 		num=0
 		
@@ -945,10 +949,8 @@ def analyze_files(RUN_CONFIG):
 								print (G+" [V]"+W+"    "+O+"-c:s:"+str(media.subCount-1)+" copy -metadata:s:s:"+str(media.subCount-1)+" language="+c.language()+W)
 						elif RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "pgssub" or c.codec() == "dvdsub"):
 							#Convert to srt
-							pbar.finish()
-							print (GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that needs to be "+C+"converted"+W)
+							print ("\n"+GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that needs to be "+C+"converted"+W)
 							newSub=convertSubtitle(media.path, c.index, c.language(), c.codec(), RUN_CONFIG)
-							pbar.start()
 							if newSub != "":
 								
 								media.addFiles.append(newSub)
@@ -961,10 +963,8 @@ def analyze_files(RUN_CONFIG):
 								
 						elif RUN_CONFIG.DEFAULT_FILEFORMAT == "m4v" and (c.codec() == "pgssub" or c.codec() == "dvdsub"):
 							#Convert to srt and then to mov_text
-							pbar.finish()
-							print (GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that need to be "+C+"converted"+W)
+							print ("\n"+GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that need to be "+C+"converted"+W)
 							newSub=convertSubtitle(media.path,c.index, c.language(), c.codec(), RUN_CONFIG)
-							pbar.start()
 							
 							if newSub != "":
 								media.addFiles.append(newSub)
@@ -997,6 +997,9 @@ def analyze_files(RUN_CONFIG):
 			except OSError:
 				print (R+" [!]"+W+" something doesn't work with "+O+media.path+W+":"+W)
 				TOCONVERT.remove(media)
+			except KeyboardInterrupt:
+				print (R+'\n (^C)'+O+' analysing interrupted'+W)
+				RUN_CONFIG.exit_gracefully(1)
 		else:
 			print "#notfunny"
 			RUN_CONFIG.exit_gracefully(1)
@@ -1004,7 +1007,6 @@ def analyze_files(RUN_CONFIG):
 		pbar.finish()
 	time_ended = time.time()
 	time_total = time_ended-time_started
-	#print (GR+" [-]"+W+" analyzing done. This took us "+str(datetime.timedelta(seconds=time_total))+" "+W)
 	
 def convert_files(RUN_CONFIG,callback=None):
 	"""
@@ -1060,6 +1062,9 @@ def convert_files(RUN_CONFIG,callback=None):
 			except CalledProcessError, e:
 				print (R+" [!]"+W+" something doesn't work with "+O+media.path+W+":"+W)
 				print (R+" [!]"+W+" "+str(e))
+				RUN_CONFIG.exit_gracefully(1)
+			except KeyboardInterrupt:
+				print (R+'\n (^C)'+O+' conversion interrupted'+W)
 				RUN_CONFIG.exit_gracefully(1)
 		try:
 			newframes=float(check_output(["mediainfo", "--Inform=Video;%FrameCount%", RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT]))
