@@ -1097,11 +1097,11 @@ def convert_files(RUN_CONFIG,callback=None):
 					cmd.append(output)
 					
 					#verbose
-					if RUN_CONFIG.DEFAULT_VERBOSE:
-						verbflag = ""
-						for flag in cmd:
-							verbflag = verbflag+" "+flag
-						print (G+" [V]"+W+"    "+O+	verbflag + W)
+					#if RUN_CONFIG.DEFAULT_VERBOSE:
+					#	verbflag = ""
+					#	for flag in cmd:
+					#		verbflag = verbflag+" "+flag
+					#	print (G+" [V]"+W+"    "+O+	verbflag + W)
 					
 					#get frames with mediainfo
 					cmd_med = ["mediainfo", "--Inform=Video;%FrameCount%", media.path]
@@ -1168,6 +1168,8 @@ def check_sanity(media,newfile,RUN_CONFIG):
 			
 			#get frame count for new file with mediainfo
 			new_frames = float(check_output(["mediainfo", "--Inform=Video;%FrameCount%", newfile]))
+			
+			diff = abs(previous_frames-new_frames)
 			
 			#check frame count
 			if RUN_CONFIG.DEFAULT_DELETEFILE and diff <= 10 and RUN_CONFIG.DEFAULT_VERBOSE:
