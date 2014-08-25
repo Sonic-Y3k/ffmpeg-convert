@@ -1,5 +1,5 @@
-#!/usr/bin/python2
-
+#!/usr/bin/env python
+# coding: utf-8
 # -*- coding: utf-8 -*-
 
 """
@@ -81,9 +81,6 @@ if not os.uname()[0].startswith("Linux") and not 'Darwin' in os.uname()[0]:
 	
 # /dev/null, send output from programs so they don't print to screen.
 DN = open(os.devnull, 'w')
-
-#List for all files.
-TOCONVERT = []
 
 ###################
 # DATA STRUCTURES #
@@ -281,8 +278,9 @@ class RunConfiguration:
 		self.DEFAULT_DELETEFILE=False
 		self.DEFAULT_FILEFORMAT=""
 		self.DEFAULT_NICE=15
-		self.DEFAULT_OUTPUTDIR="output"
+		self.DEFAULT_OUTPUTDIR=os.getcwd()+"/output"
 		self.DEFAULT_SHUTDOWN=False
+		self.TOCONVERT=[]
 		self.DEFAULT_VERBOSE=False
 		self.DEFAULT_X264LEVEL=4.1 
 		self.DEFAULT_X264PRESET="slow"
@@ -649,17 +647,17 @@ def find_files(RUN_CONFIG):
 	for root, dirnames, filenames in os.walk(os.getcwd()):
 		for filename in filenames:
 			file_ext = os.path.splitext(filename)
-			if file_ext[1] in RUN_CONFIG.SEARCHEXT and root != os.getcwd()+"/output":
-				TOCONVERT.append(MediaInfo(root+"/"+filename, file_ext[0]))		
+			if file_ext[1] in RUN_CONFIG.SEARCHEXT and root != RUN_CONFIG.DEFAULT_OUTPUTDIR:
+				RUN_CONFIG.TOCONVERT.append(MediaInfo(root+"/"+filename, file_ext[0]))		
 	
-	filecount = len(TOCONVERT)
+	filecount = len(RUN_CONFIG.TOCONVERT)
 	if filecount > 0:
 		print (GR+" [-]"+W+" found "+C+str(filecount)+W+" files.")
 	else:
 		print (R+" [!]"+W+" found "+R+str(filecount)+W+" files.")
 		RUN_CONFIG.exit_gracefully(0)
 		
-def analyze_crop(file):
+def analyze_crop(media,RUN_CONFIG):
 	"""
 		Analyze a given file weather
 		we need to crop
@@ -675,7 +673,7 @@ def analyze_crop(file):
 		while a < total_loops:
 			a+=1
 			skip_secs=35*a
-			cmd = [ "mplayer", file, "-ss", str(skip_secs), "-identify", "-frames", "20", "-vo", "md5sum", "-ao", "null", "-nocache", "-quiet", "-vf", "cropdetect=20:16" ]
+			cmd = [ "mplayer", media.path, "-ss", str(skip_secs), "-identify", "-frames", "20", "-vo", "md5sum", "-ao", "null", "-nocache", "-quiet", "-vf", "cropdetect=20:16" ]
 			proc_mplayer = check_output(cmd, stderr=DN)
 			for c in re.sub(r'[^\x00-\x7F]+',' ', proc_mplayer.decode(stdout.encoding)).split('\n'):
 				cout = c.split(' ')
@@ -706,8 +704,19 @@ def analyze_crop(file):
 				ret[1] = c[1]
 				ret[3] = c[3]
 	except:
-		print (R+" [!]"+W+" there was a problem in the cropping department.")
-		raise
+		print (R+' [!]'+O+' error getting a crop value.'+W)
+		width=re.sub(r'[^\x00-\x7F]+','', media.width)
+		height=re.sub(r'[^\x00-\x7F]+','', media.height)
+		try:
+			ret.append(str(width))
+			ret.append(str(height))
+			ret.append("0")
+			ret.append("0")
+			print (R+' [!]'+W+' returning: '+O+ret[0]+":"+ret[1]+":"+ret[2]+":"+ret[3]+W)
+		except:
+			RUN_CONFIG.TOCONVERT.remove(media)
+		
+		
 	return ret[0]+":"+ret[1]+":"+ret[2]+":"+ret[3]
 
 def convertSubtitle(path,index,lang,codec,RUN_CONFIG):
@@ -793,7 +802,206 @@ def convertSubtitle(path,index,lang,codec,RUN_CONFIG):
 	except KeyboardInterrupt:
 		print (R+'\n (^C)'+O+' Subtitle conversion interrupted'+W)
 		RUN_CONFIG.exit_gracefully(1)
-	
+
+def analyze_streams(media,RUN_CONFIG):
+	"""
+		use ffprobe to add all streams
+		to media.
+	"""
+	if os.path.isfile(media.path):
+		try:
+			if RUN_CONFIG.DEFAULT_VERBOSE:
+				print (G+" [V]"+W+" adding streams from ffprobe."+W)
+			
+			RUN_CONFIG.setFormat(media.path)
+			cmd = [ "ffprobe", "-show_streams", "-pretty", "-loglevel", "quiet", media.path ]
+			proc_ffprobe = check_output(cmd, stderr=DN)
+			datalines=[]
+			
+			for a in re.sub(r'[^\x00-\x7F]+',' ', proc_ffprobe.decode(stdout.encoding)).split('\n'):
+				if re.match('\[STREAM\]',a):
+					datalines=[]
+				elif re.match('\[\/STREAM\]',a):
+					media.add_stream(StreamInfo(datalines))
+				else:
+					datalines.append(a)
+		except:
+			RUN_CONFIG.TOCONVERT.remove(media)
+	else:
+		RUN_CONFIG.TOCONVERT.remove(media)
+
+def analyze_video(media,RUN_CONFIG):
+	"""
+		set compile options
+		for video stream
+	"""
+	if os.path.isfile(media.path):
+		try:
+			if RUN_CONFIG.DEFAULT_VERBOSE:
+				print (G+" [V]"+W+" checking for existing crf."+W)
+			
+			cmd = [ "mediainfo", "--Output='Video;%Encoded_Library_Settings%'", media.path ]
+			proc_mediainfo = check_output(cmd, stderr=DN)
+			crf = 0.0
+			for b in re.sub(r'[^\x00-\x7F]+',' ', proc_mediainfo.decode(stdout.encoding)).split(' / '):
+				if b.split('=')[0] == "crf":
+					crf = float(b.split('=')[1].replace(',','.'))
+					if RUN_CONFIG.DEFAULT_VERBOSE:
+						print (G+" [V]"+W+" new crf: "+O+str(crf)+W)
+			
+			if RUN_CONFIG.DEFAULT_VERBOSE:
+				print (G+" [V]"+W+" setting the new values:"+W)
+			
+			for c in media.streams:
+				media.add_streammap("-map 0:"+str(c.index))
+				if crf < RUN_CONFIG.DEFAULT_CRF:
+					media.add_streamopt("-c:v:0 libx264")
+					media.add_streamopt("-profile:v "+RUN_CONFIG.DEFAULT_X264PROFILE)
+					media.add_streamopt("-level "+str(RUN_CONFIG.DEFAULT_X264LEVEL))
+					media.add_streamopt("-preset "+RUN_CONFIG.DEFAULT_X264PRESET)
+					media.add_streamopt("-tune "+RUN_CONFIG.DEFAULT_X264TUNE)
+					media.add_streamopt("-crf "+str(RUN_CONFIG.DEFAULT_CRF))
+					media.add_streamopt("-metadata:s:v:0 language="+c.language())
+					if RUN_CONFIG.DEFAULT_VERBOSE:
+						print (G+" [V]"+W+"    "+O+"-c:v:0 libx264"+W)
+						print (G+" [V]"+W+"    "+O+"-profile:v "+RUN_CONFIG.DEFAULT_X264PROFILE+W)
+						print (G+" [V]"+W+"    "+O+"-level "+str(RUN_CONFIG.DEFAULT_X264LEVEL)+W)
+						print (G+" [V]"+W+"    "+O+"-preset "+RUN_CONFIG.DEFAULT_X264PRESET+W)
+						print (G+" [V]"+W+"    "+O+"-tune "+RUN_CONFIG.DEFAULT_X264TUNE+W)
+						print (G+" [V]"+W+"    "+O+"-crf "+str(RUN_CONFIG.DEFAULT_CRF)+W)
+						print (G+" [V]"+W+"    "+O+"-metadata:s:v:0 language="+c.language()+W)
+				else:
+					media.add_streamopt("-c:v:0 copy -metadata:s:v:0 language="+c.language())
+					if RUN_CONFIG.DEFAULT_VERBOSE:
+						print (G+" [V]"+W+"    "+O+"-c:v:0 copy -metadata:s:v:0 language="+c.language())
+		except:
+			RUN_CONFIG.TOCONVERT.remove(media)
+	else:
+		RUN_CONFIG.TOCONVERT.remove(media)
+
+def analyze_audio(media, RUN_CONFIG):
+	"""
+		set compile options
+		for audio stream
+	"""
+	if os.path.isfile(media.path):
+		try:
+			for c in media.streams:
+				if c.isAudio():
+					if RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "ac3" or c.codec() == "dca" or c.codec() == "truehd"):
+						media.add_streammap("-map 0:"+str(c.index))
+						media.add_streamopt("-c:a:"+str(media.audCount)+" copy -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+						media.audCount+=1
+						if RUN_CONFIG.DEFAULT_VERBOSE:
+							print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-1)+" copy -metadata:s:a:"+str(media.audCount-1)+" language="+c.language()+W)
+					elif RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and (c.codec() != "ac3" and c.codec() != "dca" and c.codec() != "truehd"):
+						media.add_streammap("-map 0:"+str(c.index))
+						media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+						media.audCount+=1
+						if RUN_CONFIG.DEFAULT_VERBOSE:
+							print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-1)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount-1)+" 640k -ac:"+str(media.audCount-1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount-1)+" language="+c.language()+W)
+					elif RUN_CONFIG.DEFAULT_FILEFORMAT == "m4v" and (c.codec() == "ac3" or c.codec() == "aac"):
+						doubleLang = 0
+						for d in media.streams:
+							if d.isAudio() and ((c.codec() == "ac3" and d.codec() == "aac") or (c.codec() == "aac" and d.codec() == "ac3")) and c.language() == d.language():
+								doubleLang = 1
+						
+						if doubleLang == 0 and c.codec() == "ac3":
+							media.add_streammap("-map 0:"+str(c.index)+" -map 0:"+str(c.index))
+							media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AACLIB+" -b:a:"+str(media.audCount)+" 320k -ac:"+str(media.audCount+1)+" 2 -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+							media.audCount+=1
+							media.add_streamopt("-c:a:"+str(media.audCount)+" copy -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+							media.audCount+=1
+							if RUN_CONFIG.DEFAULT_VERBOSE:
+								print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-2)+" "+RUN_CONFIG.DEFAULT_AACLIB+" -b:a:"+str(media.audCount-2)+" 320k -ac:"+str(media.audCount+1-2)+" 2 -metadata:s:a:"+str(media.audCount-2)+" language="+c.language()+W)
+								print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-1)+" copy -metadata:s:a:"+str(media.audCount-1)+" language="+c.language()+W)
+						elif doubleLang == 0 and c.codec() == "aac":
+							media.add_streammap("-map 0:"+str(c.index)+" -map 0:"+str(c.index))
+							media.add_streamopt("-c:a:"+str(media.audCount)+" copy -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+							media.audCount+=1
+							media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount+1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+							media.audCount+=1
+							if RUN_CONFIG.DEFAULT_VERBOSE:
+								print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-2)+" copy -metadata:s:a:"+str(media.audCount-2)+" language="+c.language()+W)
+								print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-1)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount-1)+" 640k -ac:"+str(media.audCount+1-1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount-1)+" language="+c.language()+W)
+						else:
+							media.add_streammap("-map 0:"+str(c.index))
+							media.add_streamopt("-c:a:"+str(media.audCount)+" copy -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+							media.audCount+=1
+							if RUN_CONFIG.DEFAULT_VERBOSE:
+								print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-1)+" copy -metadata:s:a:"+str(media.audCount-1)+" language="+c.language()+W)
+					else:
+						media.add_streammap("-map 0:"+str(c.index)+" -map 0:"+str(c.index))
+						media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AACLIB+" -b:a:"+str(media.audCount)+" 320k -ac:"+str(media.audCount+1)+" 2 -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+						media.audCount+=1
+						media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount+1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
+						media.audCount+=1
+						if RUN_CONFIG.DEFAULT_VERBOSE:
+							print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-2)+" "+RUN_CONFIG.DEFAULT_AACLIB+" -b:a:"+str(media.audCount-2)+" 320k -ac:"+str(media.audCount+1-2)+" 2 -metadata:s:a:"+str(media.audCount-2)+" language="+c.language()+W)
+							print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-1)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount-1)+" 640k -ac:"+str(media.audCount+1-1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount-1)+" language="+c.language()+W)
+		except:
+			RUN_CONFIG.TOCONVERT.remove(media)
+	else:
+		RUN_CONFIG.TOCONVERT.remove(media)	
+
+def analyze_subtl(media, RUN_CONFIG):
+	"""
+		set compile options
+		for subtitle stream
+	"""
+	if os.path.isfile(media.path):
+		try:
+			for c in media.streams:
+				if c.isSubtitle():
+					if (RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "ass" or c.codec() == "srt" or c.codec() == "ssa")) or (RUN_CONFIG.DEFAULT_FILEFORMAT == "m4v" and c.codec() == "mov_text"):
+						media.add_streammap("-map 0:"+str(c.index))
+						media.add_streamopt("-c:s:"+str(media.subCount)+" copy -metadata:s:s:"+str(media.subCount)+" language="+c.language())
+						media.subCount+=1
+						if RUN_CONFIG.DEFAULT_VERBOSE:
+							print (G+" [V]"+W+"    "+O+"-c:s:"+str(media.subCount-1)+" copy -metadata:s:s:"+str(media.subCount-1)+" language="+c.language()+W)
+					elif RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "pgssub" or c.codec() == "dvdsub"):
+						#Convert to srt
+						print ("\n"+GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that needs to be "+C+"converted"+W)
+						newSub=convertSubtitle(media.path, c.index, c.language(), c.codec(), RUN_CONFIG)
+						if newSub != "":
+							
+							media.addFiles.append(newSub)
+							media.add_streammap("-map "+str(len(media.addFiles))+":0")
+							
+							media.add_streamopt("-c:s:"+str(media.subCount)+" copy -metadata:s:s:"+str(media.subCount)+" language="+c.language())
+							media.subCount+=1
+							if RUN_CONFIG.DEFAULT_VERBOSE:
+								print (G+" [V]"+W+"    "+O+"-c:s:"+str(media.subCount-1)+" copy -metadata:s:s:"+str(media.subCount-1)+" language="+c.language()+W)
+							
+					elif RUN_CONFIG.DEFAULT_FILEFORMAT == "m4v" and (c.codec() == "pgssub" or c.codec() == "dvdsub"):
+						#Convert to srt and then to mov_text
+						print ("\n"+GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that needs to be "+C+"converted"+W)
+						newSub=convertSubtitle(media.path,c.index, c.language(), c.codec(), RUN_CONFIG)
+						
+						if newSub != "":
+							media.addFiles.append(newSub)
+							media.add_streammap("-map "+str(len(media.addFiles))+":0")
+							
+							media.add_streamopt("-c:s:"+str(media.subCount)+" mov_text -metadata:s:s:"+str(media.subCount)+" language="+c.language())
+							media.subCount+=1
+							if RUN_CONFIG.DEFAULT_VERBOSE:
+								print (G+" [V]"+W+"    "+O+"-c:s:"+str(media.subCount-1)+" mov_text -metadata:s:s:"+str(media.subCount-1)+" language="+c.language()+W)
+					else:
+						media.add_streammap("-map 0:"+str(c.index))
+						if RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv":
+							media.add_streamopt("-c:s:"+str(media.subCount)+" srt -metadata:s:s:"+str(media.subCount)+" language="+c.language())
+							if RUN_CONFIG.DEFAULT_VERBOSE:
+								print (G+" [V]"+W+"    "+O+"-c:s:"+str(media.subCount)+" srt -metadata:s:s:"+str(media.subCount)+" language="+c.language()+W)
+						else:
+							media.add_streamopt("-c:s:"+str(media.subCount)+" mov_text -metadata:s:s:"+str(media.subCount)+" language="+c.language())
+							if RUN_CONFIG.DEFAULT_VERBOSE:
+								print (G+" [V]"+W+"    "+O+"-c:s:"+str(media.subCount)+" mov_text -metadata:s:s:"+str(media.subCount)+" language="+c.language()+W)
+						media.subCount+=1
+		except:
+			RUN_CONFIG.TOCONVERT.remove(media)
+	else:
+		RUN_CONFIG.TOCONVERT.remove(media)	
+
 def analyze_files(RUN_CONFIG):
 	"""
 		Analyze the files we found for
@@ -808,209 +1016,41 @@ def analyze_files(RUN_CONFIG):
 	time_started = time.time()
 	if not RUN_CONFIG.DEFAULT_VERBOSE:
 		widgets = [GR+" [-]"+W+" analyzing files: ", Percentage(),' [', ETA(), ']'] #see docs for other options	
-		pbar = ProgressBar(widgets=widgets, maxval=len(TOCONVERT),redirect_stdout=False,redirect_stderr=False)
+		pbar = ProgressBar(widgets=widgets, maxval=len(RUN_CONFIG.TOCONVERT),redirect_stdout=False,redirect_stderr=False)
 		pbar.start()
-		num=0
+		num=0.0
 		
-	for media in TOCONVERT:
+	for media in RUN_CONFIG.TOCONVERT:
 		if RUN_CONFIG.DEFAULT_VERBOSE:
 			print (G+" [V]"+W+" beginn to analyze "+O+media.path+W+"."+W)
+		
+		#Add Streams to class
+		analyze_streams(media, RUN_CONFIG)
+		if not RUN_CONFIG.DEFAULT_VERBOSE:
+			pbar.update(num)
+		
+		#Analyze Video
+		analyze_video(media, RUN_CONFIG)
+		if not RUN_CONFIG.DEFAULT_VERBOSE:
+			pbar.update(num+0.3)
+		
+		#Analyze Audio
+		analyze_audio(media, RUN_CONFIG)
+		if not RUN_CONFIG.DEFAULT_VERBOSE:
+			pbar.update(num+0.6)
 			
-		if os.path.isfile(media.path):
-			try:
-				RUN_CONFIG.setFormat(media.path)
-				#We beginn with ffprobe to get Stream info
-				cmd = [ "ffprobe", "-show_streams", "-pretty", "-loglevel", "quiet", media.path ]
-				proc_ffprobe = check_output(cmd, stderr=DN)
-				datalines=[]
-				
-				if RUN_CONFIG.DEFAULT_VERBOSE:
-					print (G+" [V]"+W+" adding streams from ffprobe."+W)
-					
-				for a in re.sub(r'[^\x00-\x7F]+',' ', proc_ffprobe.decode(stdout.encoding)).split('\n'):
-					if re.match('\[STREAM\]',a):
-						datalines=[]
-					elif re.match('\[\/STREAM\]',a):
-						media.add_stream(StreamInfo(datalines))
-						datalines=[]
-					else:
-						datalines.append(a)
-				
-				#Check if we already have an crf value
-				if RUN_CONFIG.DEFAULT_VERBOSE:
-					print (G+" [V]"+W+" check for existing crf."+W)
-				cmd = [ "mediainfo", "--Output='Video;%Encoded_Library_Settings%'", media.path ]
-				proc_mediainfo = check_output(cmd, stderr=DN)
-				crf = 0.0
-			
-				for b in re.sub(r'[^\x00-\x7F]+',' ', proc_mediainfo.decode(stdout.encoding)).split(' / '):
-					if b.split('=')[0] == "crf":
-						crf = float(b.split('=')[1].replace(',','.'))
-				
-				if RUN_CONFIG.DEFAULT_VERBOSE:
-					print (G+" [V]"+W+" let's see what we got here:"+W)
-				#Let's add some convert-flags
-				for c in media.streams:
-					if c.isVideo():
-						media.add_streammap("-map 0:"+str(c.index))
-						if crf < RUN_CONFIG.DEFAULT_CRF:
-							#No Copy, need to check cropping!
-							media.add_streamopt("-c:v:0 libx264")
-							media.add_streamopt("-profile:v "+RUN_CONFIG.DEFAULT_X264PROFILE)
-							media.add_streamopt("-level "+str(RUN_CONFIG.DEFAULT_X264LEVEL))
-							media.add_streamopt("-preset "+RUN_CONFIG.DEFAULT_X264PRESET)
-							media.add_streamopt("-tune "+RUN_CONFIG.DEFAULT_X264TUNE)
-							media.add_streamopt("-crf "+str(RUN_CONFIG.DEFAULT_CRF))
-							media.add_streamopt("-metadata:s:v:0 language="+c.language())
-							
-							if RUN_CONFIG.DEFAULT_VERBOSE:
-								print (G+" [V]"+W+"    "+O+"-c:v:0 libx264"+W)
-								print (G+" [V]"+W+"    "+O+"-profile:v "+RUN_CONFIG.DEFAULT_X264PROFILE+W)
-								print (G+" [V]"+W+"    "+O+"-level "+str(RUN_CONFIG.DEFAULT_X264LEVEL)+W)
-								print (G+" [V]"+W+"    "+O+"-preset "+RUN_CONFIG.DEFAULT_X264PRESET+W)
-								print (G+" [V]"+W+"    "+O+"-tune "+RUN_CONFIG.DEFAULT_X264TUNE+W)
-								print (G+" [V]"+W+"    "+O+"-crf "+str(RUN_CONFIG.DEFAULT_CRF)+W)
-								print (G+" [V]"+W+"    "+O+"-metadata:s:v:0 language="+c.language()+W)
-							
-							if RUN_CONFIG.DEFAULT_CROPPING:
-								crop=analyze_crop(media.path)
-								media.add_streamopt("-filter:v crop="+crop)
-								if RUN_CONFIG.DEFAULT_VERBOSE:
-									print (G+" [V]"+W+"    "+O+"-filter:v crop="+crop+W)
-							
-						else:
-							#We can copy the video stream
-							media.add_streamopt("-c:v:0 copy -metadata:s:v:0 language="+c.language())
-							if RUN_CONFIG.DEFAULT_VERBOSE:
-								print (G+" [V]"+W+"    "+O+"-c:v:0 copy -metadata:s:v:0 language="+c.language())
-
-				if not RUN_CONFIG.DEFAULT_VERBOSE:
-					pbar.update(num+0.3)
-				for c in media.streams:
-					if c.isAudio():
-						if RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "ac3" or c.codec() == "dca" or c.codec() == "truehd"):
-							media.add_streammap("-map 0:"+str(c.index))
-							media.add_streamopt("-c:a:"+str(media.audCount)+" copy -metadata:s:a:"+str(media.audCount)+" language="+c.language())
-							media.audCount+=1
-							if RUN_CONFIG.DEFAULT_VERBOSE:
-								print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-1)+" copy -metadata:s:a:"+str(media.audCount-1)+" language="+c.language()+W)
-						elif RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and (c.codec() != "ac3" and c.codec() != "dca" and c.codec() != "truehd"):
-							media.add_streammap("-map 0:"+str(c.index))
-							media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
-							media.audCount+=1
-							if RUN_CONFIG.DEFAULT_VERBOSE:
-								print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-1)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount-1)+" 640k -ac:"+str(media.audCount-1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount-1)+" language="+c.language()+W)
-						elif RUN_CONFIG.DEFAULT_FILEFORMAT == "m4v" and (c.codec() == "ac3" or c.codec() == "aac"):
-							doubleLang = 0
-							for d in media.streams:
-								if d.isAudio() and ((c.codec() == "ac3" and d.codec() == "aac") or (c.codec() == "aac" and d.codec() == "ac3")) and c.language() == d.language():
-									doubleLang = 1
-							
-							if doubleLang == 0 and c.codec() == "ac3":
-								media.add_streammap("-map 0:"+str(c.index)+" -map 0:"+str(c.index))
-								media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AACLIB+" -b:a:"+str(media.audCount)+" 320k -ac:"+str(media.audCount+1)+" 2 -metadata:s:a:"+str(media.audCount)+" language="+c.language())
-								media.audCount+=1
-								media.add_streamopt("-c:a:"+str(media.audCount)+" copy -metadata:s:a:"+str(media.audCount)+" language="+c.language())
-								media.audCount+=1
-								if RUN_CONFIG.DEFAULT_VERBOSE:
-									print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-2)+" "+RUN_CONFIG.DEFAULT_AACLIB+" -b:a:"+str(media.audCount-2)+" 320k -ac:"+str(media.audCount+1-2)+" 2 -metadata:s:a:"+str(media.audCount-2)+" language="+c.language()+W)
-									print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-1)+" copy -metadata:s:a:"+str(media.audCount-1)+" language="+c.language()+W)
-							elif doubleLang == 0 and c.codec() == "aac":
-								media.add_streammap("-map 0:"+str(c.index)+" -map 0:"+str(c.index))
-								media.add_streamopt("-c:a:"+str(media.audCount)+" copy -metadata:s:a:"+str(media.audCount)+" language="+c.language())
-								media.audCount+=1
-								media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount+1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
-								media.audCount+=1
-								if RUN_CONFIG.DEFAULT_VERBOSE:
-									print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-2)+" copy -metadata:s:a:"+str(media.audCount-2)+" language="+c.language()+W)
-									print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-1)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount-1)+" 640k -ac:"+str(media.audCount+1-1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount-1)+" language="+c.language()+W)
-							else:
-								media.add_streammap("-map 0:"+str(c.index))
-								media.add_streamopt("-c:a:"+str(media.audCount)+" copy -metadata:s:a:"+str(media.audCount)+" language="+c.language())
-								media.audCount+=1
-								if RUN_CONFIG.DEFAULT_VERBOSE:
-									print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-1)+" copy -metadata:s:a:"+str(media.audCount-1)+" language="+c.language()+W)
-						else:
-							media.add_streammap("-map 0:"+str(c.index)+" -map 0:"+str(c.index))
-							media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AACLIB+" -b:a:"+str(media.audCount)+" 320k -ac:"+str(media.audCount+1)+" 2 -metadata:s:a:"+str(media.audCount)+" language="+c.language())
-							media.audCount+=1
-							media.add_streamopt("-c:a:"+str(media.audCount)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount)+" 640k -ac:"+str(media.audCount+1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount)+" language="+c.language())
-							media.audCount+=1
-							if RUN_CONFIG.DEFAULT_VERBOSE:
-								print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-2)+" "+RUN_CONFIG.DEFAULT_AACLIB+" -b:a:"+str(media.audCount-2)+" 320k -ac:"+str(media.audCount+1-2)+" 2 -metadata:s:a:"+str(media.audCount-2)+" language="+c.language()+W)
-								print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-1)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount-1)+" 640k -ac:"+str(media.audCount+1-1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount-1)+" language="+c.language()+W)
-						
-				if not RUN_CONFIG.DEFAULT_VERBOSE:
-					pbar.update(num+0.6)
-				
-				for c in media.streams:
-					if c.isSubtitle():
-						if (RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "ass" or c.codec() == "srt" or c.codec() == "ssa")) or (RUN_CONFIG.DEFAULT_FILEFORMAT == "m4v" and c.codec() == "mov_text"):
-							media.add_streammap("-map 0:"+str(c.index))
-							media.add_streamopt("-c:s:"+str(media.subCount)+" copy -metadata:s:s:"+str(media.subCount)+" language="+c.language())
-							media.subCount+=1
-							if RUN_CONFIG.DEFAULT_VERBOSE:
-								print (G+" [V]"+W+"    "+O+"-c:s:"+str(media.subCount-1)+" copy -metadata:s:s:"+str(media.subCount-1)+" language="+c.language()+W)
-						elif RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv" and (c.codec() == "pgssub" or c.codec() == "dvdsub"):
-							#Convert to srt
-							print ("\n"+GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that needs to be "+C+"converted"+W)
-							newSub=convertSubtitle(media.path, c.index, c.language(), c.codec(), RUN_CONFIG)
-							if newSub != "":
-								
-								media.addFiles.append(newSub)
-								media.add_streammap("-map "+str(len(media.addFiles))+":0")
-								
-								media.add_streamopt("-c:s:"+str(media.subCount)+" copy -metadata:s:s:"+str(media.subCount)+" language="+c.language())
-								media.subCount+=1
-								if RUN_CONFIG.DEFAULT_VERBOSE:
-									print (G+" [V]"+W+"    "+O+"-c:s:"+str(media.subCount-1)+" copy -metadata:s:s:"+str(media.subCount-1)+" language="+c.language()+W)
-								
-						elif RUN_CONFIG.DEFAULT_FILEFORMAT == "m4v" and (c.codec() == "pgssub" or c.codec() == "dvdsub"):
-							#Convert to srt and then to mov_text
-							print ("\n"+GR+" [-]"+W+" found "+C+"subtitle"+W+" (file: "+media.name+", index: "+c.index+", lang: "+c.language()+") that need to be "+C+"converted"+W)
-							newSub=convertSubtitle(media.path,c.index, c.language(), c.codec(), RUN_CONFIG)
-							
-							if newSub != "":
-								media.addFiles.append(newSub)
-								media.add_streammap("-map "+str(len(media.addFiles))+":0")
-								
-								media.add_streamopt("-c:s:"+str(media.subCount)+" mov_text -metadata:s:s:"+str(media.subCount)+" language="+c.language())
-								media.subCount+=1
-								if RUN_CONFIG.DEFAULT_VERBOSE:
-									print (G+" [V]"+W+"    "+O+"-c:s:"+str(media.subCount-1)+" mov_text -metadata:s:s:"+str(media.subCount-1)+" language="+c.language()+W)
-						else:
-							media.add_streammap("-map 0:"+str(c.index))
-							if RUN_CONFIG.DEFAULT_FILEFORMAT == "mkv":
-								media.add_streamopt("-c:s:"+str(media.subCount)+" srt -metadata:s:s:"+str(media.subCount)+" language="+c.language())
-								if RUN_CONFIG.DEFAULT_VERBOSE:
-									print (G+" [V]"+W+"    "+O+"-c:s:"+str(media.subCount)+" srt -metadata:s:s:"+str(media.subCount)+" language="+c.language()+W)
-							else:
-								media.add_streamopt("-c:s:"+str(media.subCount)+" mov_text -metadata:s:s:"+str(media.subCount)+" language="+c.language())
-								if RUN_CONFIG.DEFAULT_VERBOSE:
-									print (G+" [V]"+W+"    "+O+"-c:s:"+str(media.subCount)+" mov_text -metadata:s:s:"+str(media.subCount)+" language="+c.language()+W)
-							media.subCount+=1
-						
-				if not RUN_CONFIG.DEFAULT_VERBOSE:
-					pbar.update(num)
-					num+=1
-								
-			except CalledProcessError, e:
-				print (R+" [!]"+W+" something doesn't work with "+O+media.path+W+":"+W)
-				print (R+" [!]"+W+" "+str(e))
-				TOCONVERT.remove(media)
-			except OSError:
-				print (R+" [!]"+W+" something doesn't work with "+O+media.path+W+":"+W)
-				TOCONVERT.remove(media)
-			except KeyboardInterrupt:
-				print (R+'\n (^C)'+O+' analysing interrupted'+W)
-				RUN_CONFIG.exit_gracefully(1)
-		else:
-			print "#notfunny"
-			RUN_CONFIG.exit_gracefully(1)
+		#Analyze Subtitle
+		analyze_subtl(media, RUN_CONFIG)
+		if not RUN_CONFIG.DEFAULT_VERBOSE:
+			pbar.update(num+1.0)
+			num+=1.0
+	
 	if not RUN_CONFIG.DEFAULT_VERBOSE:
 		pbar.finish()
-	time_ended = time.time()
-	time_total = time_ended-time_started
+	else:
+		time_ended = time.time()
+		time_total = time_ended-time_started
+		print (G+" [V]"+W+" analyzing took us "+O+str(time_total)+W+"."+W)
 	
 def convert_files(RUN_CONFIG,callback=None):
 	"""
@@ -1019,7 +1059,7 @@ def convert_files(RUN_CONFIG,callback=None):
 	"""
 	time_started = time.time()
 	
-	for media in TOCONVERT:
+	for media in RUN_CONFIG.TOCONVERT:
 		if os.path.isfile(media.path):
 			try:
 				if not os.path.exists(RUN_CONFIG.DEFAULT_OUTPUTDIR):
@@ -1033,10 +1073,16 @@ def convert_files(RUN_CONFIG,callback=None):
 				#cmd.append("-t")
 				#cmd.append("00:01:00.00")
 				cmd.append(RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT)
+				if RUN_CONFIG.DEFAULT_VERBOSE:
+					verbflag = ""
+					for flag in cmd:
+						verbflag = verbflag+" "+flag
+					print (G+" [V]"+W+"    "+O+	verbflag + W)
+				
 				widgets = [GR+" [-]"+W+" starting conversion\t",' ',Percentage(), ' ', Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()] #see docs for other options
 				cmd_med = ["mediainfo", "--Inform=Video;%FrameCount%", media.path]
 				frames = float(check_output(cmd_med))
-				
+					
 				pipe = Popen(cmd,stderr=PIPE,close_fds=True)
 				fcntl.fcntl(pipe.stderr.fileno(),fcntl.F_SETFL,fcntl.fcntl(pipe.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK)
 							
@@ -1070,6 +1116,9 @@ def convert_files(RUN_CONFIG,callback=None):
 			except KeyboardInterrupt:
 				print (R+'\n (^C)'+O+' conversion interrupted'+W)
 				RUN_CONFIG.exit_gracefully(1)
+			except ValueError:
+				print (R+" [!]"+W+" something doesn't work with "+O+media.path+W+":"+W)
+				continue
 		try:
 			newframes=float(check_output(["mediainfo", "--Inform=Video;%FrameCount%", RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT]))
 		except ValueError:
