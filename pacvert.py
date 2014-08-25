@@ -703,21 +703,13 @@ def analyze_crop(media,RUN_CONFIG):
 			if int(c[1]) > int(ret[1]):
 				ret[1] = c[1]
 				ret[3] = c[3]
+	
+		return ret[0]+":"+ret[1]+":"+ret[2]+":"+ret[3]
+	except KeyboardInterrupt:
+		print (R+'\n (^C)'+O+' interrupted\n'+W)
+		RUN_CONFIG.exit_gracefully(1)
 	except:
-		print (R+' [!]'+O+' error getting a crop value.'+W)
-		width=re.sub(r'[^\x00-\x7F]+','', media.width)
-		height=re.sub(r'[^\x00-\x7F]+','', media.height)
-		try:
-			ret.append(str(width))
-			ret.append(str(height))
-			ret.append("0")
-			ret.append("0")
-			print (R+' [!]'+W+' returning: '+O+ret[0]+":"+ret[1]+":"+ret[2]+":"+ret[3]+W)
-		except:
-			RUN_CONFIG.TOCONVERT.remove(media)
-		
-		
-	return ret[0]+":"+ret[1]+":"+ret[2]+":"+ret[3]
+		RUN_CONFIG.TOCONVERT.remove(media)
 
 def convertSubtitle(path,index,lang,codec,RUN_CONFIG):
 	"""
@@ -825,6 +817,9 @@ def analyze_streams(media,RUN_CONFIG):
 					media.add_stream(StreamInfo(datalines))
 				else:
 					datalines.append(a)
+		except KeyboardInterrupt:
+			print (R+'\n (^C)'+O+' interrupted\n'+W)
+			RUN_CONFIG.exit_gracefully(1)
 		except:
 			RUN_CONFIG.TOCONVERT.remove(media)
 	else:
@@ -847,33 +842,43 @@ def analyze_video(media,RUN_CONFIG):
 				if b.split('=')[0] == "crf":
 					crf = float(b.split('=')[1].replace(',','.'))
 					if RUN_CONFIG.DEFAULT_VERBOSE:
-						print (G+" [V]"+W+" new crf: "+O+str(crf)+W)
+						print (G+" [V]"+W+" found crf in file: "+O+str(crf)+W)
 			
 			if RUN_CONFIG.DEFAULT_VERBOSE:
 				print (G+" [V]"+W+" setting the new values:"+W)
 			
 			for c in media.streams:
-				media.add_streammap("-map 0:"+str(c.index))
-				if crf < RUN_CONFIG.DEFAULT_CRF:
-					media.add_streamopt("-c:v:0 libx264")
-					media.add_streamopt("-profile:v "+RUN_CONFIG.DEFAULT_X264PROFILE)
-					media.add_streamopt("-level "+str(RUN_CONFIG.DEFAULT_X264LEVEL))
-					media.add_streamopt("-preset "+RUN_CONFIG.DEFAULT_X264PRESET)
-					media.add_streamopt("-tune "+RUN_CONFIG.DEFAULT_X264TUNE)
-					media.add_streamopt("-crf "+str(RUN_CONFIG.DEFAULT_CRF))
-					media.add_streamopt("-metadata:s:v:0 language="+c.language())
-					if RUN_CONFIG.DEFAULT_VERBOSE:
-						print (G+" [V]"+W+"    "+O+"-c:v:0 libx264"+W)
-						print (G+" [V]"+W+"    "+O+"-profile:v "+RUN_CONFIG.DEFAULT_X264PROFILE+W)
-						print (G+" [V]"+W+"    "+O+"-level "+str(RUN_CONFIG.DEFAULT_X264LEVEL)+W)
-						print (G+" [V]"+W+"    "+O+"-preset "+RUN_CONFIG.DEFAULT_X264PRESET+W)
-						print (G+" [V]"+W+"    "+O+"-tune "+RUN_CONFIG.DEFAULT_X264TUNE+W)
-						print (G+" [V]"+W+"    "+O+"-crf "+str(RUN_CONFIG.DEFAULT_CRF)+W)
-						print (G+" [V]"+W+"    "+O+"-metadata:s:v:0 language="+c.language()+W)
-				else:
-					media.add_streamopt("-c:v:0 copy -metadata:s:v:0 language="+c.language())
-					if RUN_CONFIG.DEFAULT_VERBOSE:
-						print (G+" [V]"+W+"    "+O+"-c:v:0 copy -metadata:s:v:0 language="+c.language())
+				if c.isVideo():
+					media.add_streammap("-map 0:"+str(c.index))
+					if crf < RUN_CONFIG.DEFAULT_CRF:
+						media.add_streamopt("-c:v:0 libx264")
+						media.add_streamopt("-profile:v "+RUN_CONFIG.DEFAULT_X264PROFILE)
+						media.add_streamopt("-level "+str(RUN_CONFIG.DEFAULT_X264LEVEL))
+						media.add_streamopt("-preset "+RUN_CONFIG.DEFAULT_X264PRESET)
+						media.add_streamopt("-tune "+RUN_CONFIG.DEFAULT_X264TUNE)
+						media.add_streamopt("-crf "+str(RUN_CONFIG.DEFAULT_CRF))
+						media.add_streamopt("-metadata:s:v:0 language="+c.language())
+						if RUN_CONFIG.DEFAULT_VERBOSE:
+							print (G+" [V]"+W+"    "+O+"-c:v:0 libx264"+W)
+							print (G+" [V]"+W+"    "+O+"-profile:v "+RUN_CONFIG.DEFAULT_X264PROFILE+W)
+							print (G+" [V]"+W+"    "+O+"-level "+str(RUN_CONFIG.DEFAULT_X264LEVEL)+W)
+							print (G+" [V]"+W+"    "+O+"-preset "+RUN_CONFIG.DEFAULT_X264PRESET+W)
+							print (G+" [V]"+W+"    "+O+"-tune "+RUN_CONFIG.DEFAULT_X264TUNE+W)
+							print (G+" [V]"+W+"    "+O+"-crf "+str(RUN_CONFIG.DEFAULT_CRF)+W)
+							print (G+" [V]"+W+"    "+O+"-metadata:s:v:0 language="+c.language()+W)
+					
+						if RUN_CONFIG.DEFAULT_CROPPING:
+							crop=analyze_crop(media,RUN_CONFIG)
+							media.add_streamopt("-filter:v crop="+crop)
+							if RUN_CONFIG.DEFAULT_VERBOSE:
+								print (G+" [V]"+W+"    "+O+"-filter:v crop="+crop+W)
+					else:
+						media.add_streamopt("-c:v:0 copy -metadata:s:v:0 language="+c.language())
+						if RUN_CONFIG.DEFAULT_VERBOSE:
+							print (G+" [V]"+W+"    "+O+"-c:v:0 copy -metadata:s:v:0 language="+c.language())
+		except KeyboardInterrupt:
+			print (R+'\n (^C)'+O+' interrupted\n'+W)
+			RUN_CONFIG.exit_gracefully(1)
 		except:
 			RUN_CONFIG.TOCONVERT.remove(media)
 	else:
@@ -939,6 +944,9 @@ def analyze_audio(media, RUN_CONFIG):
 						if RUN_CONFIG.DEFAULT_VERBOSE:
 							print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-2)+" "+RUN_CONFIG.DEFAULT_AACLIB+" -b:a:"+str(media.audCount-2)+" 320k -ac:"+str(media.audCount+1-2)+" 2 -metadata:s:a:"+str(media.audCount-2)+" language="+c.language()+W)
 							print (G+" [V]"+W+"    "+O+"-c:a:"+str(media.audCount-1)+" "+RUN_CONFIG.DEFAULT_AC3LIB+" -b:a:"+str(media.audCount-1)+" 640k -ac:"+str(media.audCount+1-1)+" "+max(2,c.channels)+" -metadata:s:a:"+str(media.audCount-1)+" language="+c.language()+W)
+		except KeyboardInterrupt:
+			print (R+'\n (^C)'+O+' interrupted\n'+W)
+			RUN_CONFIG.exit_gracefully(1)
 		except:
 			RUN_CONFIG.TOCONVERT.remove(media)
 	else:
@@ -997,6 +1005,9 @@ def analyze_subtl(media, RUN_CONFIG):
 							if RUN_CONFIG.DEFAULT_VERBOSE:
 								print (G+" [V]"+W+"    "+O+"-c:s:"+str(media.subCount)+" mov_text -metadata:s:s:"+str(media.subCount)+" language="+c.language()+W)
 						media.subCount+=1
+		except KeyboardInterrupt:
+			print (R+'\n (^C)'+O+' interrupted\n'+W)
+			RUN_CONFIG.exit_gracefully(1)
 		except:
 			RUN_CONFIG.TOCONVERT.remove(media)
 	else:
@@ -1052,6 +1063,7 @@ def analyze_files(RUN_CONFIG):
 		time_total = time_ended-time_started
 		print (G+" [V]"+W+" analyzing took us "+O+str(time_total)+W+"."+W)
 	
+
 def convert_files(RUN_CONFIG,callback=None):
 	"""
 		Finally convert all the
@@ -1059,90 +1071,121 @@ def convert_files(RUN_CONFIG,callback=None):
 	"""
 	time_started = time.time()
 	
-	for media in RUN_CONFIG.TOCONVERT:
-		if os.path.isfile(media.path):
-			try:
-				if not os.path.exists(RUN_CONFIG.DEFAULT_OUTPUTDIR):
-					os.makedirs(RUN_CONFIG.DEFAULT_OUTPUTDIR)
-					if RUN_CONFIG.DEFAULT_CHOWN != "":
-						os.system("sudo chown -R "+RUN_CONFIG.DEFAULT_CHOWN+" "+RUN_CONFIG.DEFAULT_OUTPUTDIR)
-				RUN_CONFIG.setFormat(media.path)	
-
-				cmd = media.get_flags(RUN_CONFIG.DEFAULT_NICE)
-				cmd.append("-y")
-				#cmd.append("-t")
-				#cmd.append("00:01:00.00")
-				cmd.append(RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT)
-				if RUN_CONFIG.DEFAULT_VERBOSE:
-					verbflag = ""
-					for flag in cmd:
-						verbflag = verbflag+" "+flag
-					print (G+" [V]"+W+"    "+O+	verbflag + W)
-				
-				widgets = [GR+" [-]"+W+" starting conversion\t",' ',Percentage(), ' ', Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()] #see docs for other options
-				cmd_med = ["mediainfo", "--Inform=Video;%FrameCount%", media.path]
-				frames = float(check_output(cmd_med))
+	current=1
+	try:
+		for media in RUN_CONFIG.TOCONVERT:
+			if os.path.isfile(media.path):
+				try:
+					if not os.path.exists(RUN_CONFIG.DEFAULT_OUTPUTDIR):
+						os.makedirs(RUN_CONFIG.DEFAULT_OUTPUTDIR)
+						if RUN_CONFIG.DEFAULT_CHOWN != "":
+							os.system("sudo chown -R "+RUN_CONFIG.DEFAULT_CHOWN+" "+RUN_CONFIG.DEFAULT_OUTPUTDIR)
 					
-				pipe = Popen(cmd,stderr=PIPE,close_fds=True)
-				fcntl.fcntl(pipe.stderr.fileno(),fcntl.F_SETFL,fcntl.fcntl(pipe.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK)
+					#set output format
+					RUN_CONFIG.setFormat(media.path)
+					
+					#get all flags for ffmpeg 
+					cmd = media.get_flags(RUN_CONFIG.DEFAULT_NICE)
+					cmd.append("-y")
+					
+					#for testing with 1 min video
+					#cmd.append("-t")
+					#cmd.append("00:01:00.00")
+					
+					#add output filename and dir
+					output=RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT
+					cmd.append(output)
+					
+					#verbose
+					if RUN_CONFIG.DEFAULT_VERBOSE:
+						verbflag = ""
+						for flag in cmd:
+							verbflag = verbflag+" "+flag
+						print (G+" [V]"+W+"    "+O+	verbflag + W)
+					
+					#get frames with mediainfo
+					cmd_med = ["mediainfo", "--Inform=Video;%FrameCount%", media.path]
+					frames = float(check_output(cmd_med))
+					
+					#widgets for the progressbar
+					widgets = [GR+" [-]"+W+" starting conversion ("+str(current)+"/"+str(len(RUN_CONFIG.TOCONVERT))+")\t",' ',Percentage(), ' ', Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()]
+					
+					#open progress and set stdout / stderr
+					pipe = Popen(cmd,stderr=PIPE,close_fds=True)
+					fcntl.fcntl(pipe.stderr.fileno(),fcntl.F_SETFL,fcntl.fcntl(pipe.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK)
+					
+					prev=0
+					pbar = ProgressBar(widgets=widgets, maxval=frames,redirect_stdout=True,redirect_stderr=True)
+					pbar.start()
+					time.sleep(2)
+					
+					#check progress
+					while pipe.poll() is None:
+						readx = select.select([pipe.stderr.fileno()], [], [])[0]
+						if readx:
+							chunk = pipe.stderr.read()
 							
-				prev=0
-				pbar = ProgressBar(widgets=widgets, maxval=frames,redirect_stdout=True,redirect_stderr=True)
-				pbar.start()
-				
-				time.sleep(5)
-				while pipe.poll() is None:
-					readx = select.select([pipe.stderr.fileno()], [], [])[0]
-					if readx:
-						chunk = pipe.stderr.read()
-						if chunk == '':
-							break
-						m = re.findall(r'\d+',chunk)
-						out = m[0]
+							if chunk == '':
+								break
+							m = re.findall(r'\d+',chunk)
+							out = m[0]
 						
-						if out.isdigit():
-							num = int(out)
+							if out.isdigit():
+								num = int(out)
 				
-						if num > prev and num >= 0 and num <= frames:
-							widgets[6] = FormatLabel(m[1]+" FPS")
-							pbar.update(num)
-							prev=num
+							if num > prev and num >= 0 and num <= frames:
+								widgets[6] = FormatLabel(m[1]+" FPS")
+								pbar.update(num)
+								prev=num
+					pbar.finish()
+					check_sanity(media,output,RUN_CONFIG)
+				except KeyboardInterrupt:
+					print (R+'\n (^C)'+O+' interrupted\n'+W)
+					RUN_CONFIG.exit_gracefully(1)
+				except:
+					print (R+" [!]"+W+" error in: "+O+media.path+W+"."+W)
+					continue
 				
-				pbar.finish()
-			except CalledProcessError, e:
-				print (R+" [!]"+W+" something doesn't work with "+O+media.path+W+":"+W)
-				print (R+" [!]"+W+" "+str(e))
-				RUN_CONFIG.exit_gracefully(1)
-			except KeyboardInterrupt:
-				print (R+'\n (^C)'+O+' conversion interrupted'+W)
-				RUN_CONFIG.exit_gracefully(1)
-			except ValueError:
-				print (R+" [!]"+W+" something doesn't work with "+O+media.path+W+":"+W)
-				continue
-		try:
-			newframes=float(check_output(["mediainfo", "--Inform=Video;%FrameCount%", RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT]))
-		except ValueError:
-			newframes=0
-		#except CalledProcessError:
-		#	newframes=0
+				current+=1	
+	
+		time_ended = time.time()
+		time_total = time_ended-time_started
+		print (GR+" [-]"+W+" converting done. This took us "+str(datetime.timedelta(seconds=time_total))+" "+W)	
+	except KeyboardInterrupt:
+		print (R+'\n (^C)'+O+' conversion interrupted'+W)
+		RUN_CONFIG.exit_gracefully(1)
+
+def check_sanity(media,newfile,RUN_CONFIG):
+	"""
+		check if output is 
+		valid and, if defined,
+		delete the original.
+	"""
+	try:
+		if os.path.isfile(media.path) and os.path.isfile(newfile):
+			#get previous frame count with mediainfo
+			previous_frames = float(check_output(["mediainfo", "--Inform=Video;%FrameCount%", media.path]))
 			
-		diff=abs(frames-newframes)
-		if RUN_CONFIG.DEFAULT_DELETEFILE and diff <= 10:
-			print (O+" [W]"+W+" passed sanity check - deleting file"+W)
-			os.remove(media.path)
-		elif RUN_CONFIG.DEFAULT_DELETEFILE and diff > 10:
-			print (R+" [!]"+W+" failed sanity check - keeping file"+W)
-		else:
-			print (GR+" [W]"+W+" sanity check disabled - keeping file"+W)
-		
-		if RUN_CONFIG.DEFAULT_CHOWN != "":
-			os.system("sudo chown "+RUN_CONFIG.DEFAULT_CHOWN+" "+RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT)
-	time_ended = time.time()
-	time_total = time_ended-time_started
-	print (GR+" [-]"+W+" converting done. This took us "+str(datetime.timedelta(seconds=time_total))+" "+W)
-	print (R+" [-]"+W+" bye bye."+W)
-
-
+			#get frame count for new file with mediainfo
+			new_frames = float(check_output(["mediainfo", "--Inform=Video;%FrameCount%", newfile]))
+			
+			#check frame count
+			if RUN_CONFIG.DEFAULT_DELETEFILE and diff <= 10 and RUN_CONFIG.DEFAULT_VERBOSE:
+				print (O+" [W]"+W+" passed sanity check - deleting file"+W)
+				os.remove(media.path)
+			elif RUN_CONFIG.DEFAULT_DELETEFILE and diff > 10:
+				print (R+" [!]"+W+" failed sanity check - keeping file"+W)
+			else:
+				if RUN_CONFIG.DEFAULT_VERBOSE:
+					print (GR+" [W]"+W+" sanity check disabled - keeping file"+W)
+			
+			#chown new file, if necessary
+			if RUN_CONFIG.DEFAULT_CHOWN != "":
+				os.system("sudo chown "+RUN_CONFIG.DEFAULT_CHOWN+" "+newfile)
+	except KeyboardInterrupt:
+		print (R+'\n (^C)'+O+' interrupted\n'+W)
+	except:
+		print (R+" [!]"+W+" defnitly failed sanity check: "+O+media.path+W+"."+W)
 
 if __name__ == '__main__':
 	RUN_CONFIG = RunConfiguration()
