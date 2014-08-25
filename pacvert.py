@@ -803,7 +803,7 @@ def analyze_streams(media,RUN_CONFIG):
 	if os.path.isfile(media.path):
 		try:
 			if RUN_CONFIG.DEFAULT_VERBOSE:
-				print (G+" [V]"+W+" adding streams from ffprobe."+W)
+				print (G+" [V]  "+W+" adding streams from ffprobe."+W)
 			
 			RUN_CONFIG.setFormat(media.path)
 			cmd = [ "ffprobe", "-show_streams", "-pretty", "-loglevel", "quiet", media.path ]
@@ -833,7 +833,7 @@ def analyze_video(media,RUN_CONFIG):
 	if os.path.isfile(media.path):
 		try:
 			if RUN_CONFIG.DEFAULT_VERBOSE:
-				print (G+" [V]"+W+" checking for existing crf."+W)
+				print (G+" [V]  "+W+" checking for existing crf."+W)
 			
 			cmd = [ "mediainfo", "--Output='Video;%Encoded_Library_Settings%'", media.path ]
 			proc_mediainfo = check_output(cmd, stderr=DN)
@@ -842,10 +842,10 @@ def analyze_video(media,RUN_CONFIG):
 				if b.split('=')[0] == "crf":
 					crf = float(b.split('=')[1].replace(',','.'))
 					if RUN_CONFIG.DEFAULT_VERBOSE:
-						print (G+" [V]"+W+" found crf in file: "+O+str(crf)+W)
+						print (G+" [V]  "+W+" found crf in file: "+O+str(crf)+W)
 			
 			if RUN_CONFIG.DEFAULT_VERBOSE:
-				print (G+" [V]"+W+" setting the new values:"+W)
+				print (G+" [V]  "+W+" setting the new values:"+W)
 			
 			for c in media.streams:
 				if c.isVideo():
@@ -1033,7 +1033,7 @@ def analyze_files(RUN_CONFIG):
 		
 	for media in RUN_CONFIG.TOCONVERT:
 		if RUN_CONFIG.DEFAULT_VERBOSE:
-			print (G+" [V]"+W+" beginn to analyze "+O+media.path+W+"."+W)
+			print (G+" [V]"+W+" analyze "+O+media.name+W+":"+W)
 		
 		#Add Streams to class
 		analyze_streams(media, RUN_CONFIG)
@@ -1063,7 +1063,6 @@ def analyze_files(RUN_CONFIG):
 		time_total = time_ended-time_started
 		print (G+" [V]"+W+" analyzing took us "+O+str(time_total)+W+"."+W)
 	
-
 def convert_files(RUN_CONFIG,callback=None):
 	"""
 		Finally convert all the
@@ -1072,88 +1071,82 @@ def convert_files(RUN_CONFIG,callback=None):
 	time_started = time.time()
 	
 	current=1
-	try:
-		for media in RUN_CONFIG.TOCONVERT:
-			if os.path.isfile(media.path):
-				try:
-					if not os.path.exists(RUN_CONFIG.DEFAULT_OUTPUTDIR):
-						os.makedirs(RUN_CONFIG.DEFAULT_OUTPUTDIR)
-						if RUN_CONFIG.DEFAULT_CHOWN != "":
-							os.system("sudo chown -R "+RUN_CONFIG.DEFAULT_CHOWN+" "+RUN_CONFIG.DEFAULT_OUTPUTDIR)
+	for media in RUN_CONFIG.TOCONVERT:
+		try:
+			if not os.path.exists(RUN_CONFIG.DEFAULT_OUTPUTDIR):
+				os.makedirs(RUN_CONFIG.DEFAULT_OUTPUTDIR)
+				if RUN_CONFIG.DEFAULT_CHOWN != "":
+					os.system("sudo chown -R "+RUN_CONFIG.DEFAULT_CHOWN+" "+RUN_CONFIG.DEFAULT_OUTPUTDIR)
+			
+			#set output format
+			RUN_CONFIG.setFormat(media.path)
+			
+			#get all flags for ffmpeg 
+			cmd = media.get_flags(RUN_CONFIG.DEFAULT_NICE)
+			cmd.append("-y")
+			
+			#for testing with 1 min video
+			#cmd.append("-t")
+			#cmd.append("00:01:00.00")
+			
+			#add output filename and dir
+			output=RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT
+			cmd.append(output)
+			
+			#get frames with mediainfo
+			cmd_med = ["mediainfo", "--Inform=Video;%FrameCount%", media.path]
+			frames = float(check_output(cmd_med))
+			
+			#widgets for the progressbar
+			widgets = [GR+" [-]"+W+" starting conversion ("+str(current)+"/"+str(len(RUN_CONFIG.TOCONVERT))+")\t",' ',Percentage(), ' ', Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()]
+			
+			#open progress and set stdout / stderr
+			pipe = Popen(cmd,stderr=PIPE,close_fds=True)
+			fcntl.fcntl(pipe.stderr.fileno(),fcntl.F_SETFL,fcntl.fcntl(pipe.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK)
+			
+			prev=0
+			pbar = ProgressBar(widgets=widgets, maxval=frames,redirect_stdout=True,redirect_stderr=True)
+			pbar.start()
+			time.sleep(2)
+			
+			#check progress
+			while pipe.poll() is None:
+				readx = select.select([pipe.stderr.fileno()], [], [])[0]
+				if readx:
+					chunk = pipe.stderr.read()
 					
-					#set output format
-					RUN_CONFIG.setFormat(media.path)
-					
-					#get all flags for ffmpeg 
-					cmd = media.get_flags(RUN_CONFIG.DEFAULT_NICE)
-					cmd.append("-y")
-					
-					#for testing with 1 min video
-					#cmd.append("-t")
-					#cmd.append("00:01:00.00")
-					
-					#add output filename and dir
-					output=RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+media.name+"."+RUN_CONFIG.DEFAULT_FILEFORMAT
-					cmd.append(output)
-					
-					#verbose
-					#if RUN_CONFIG.DEFAULT_VERBOSE:
-					#	verbflag = ""
-					#	for flag in cmd:
-					#		verbflag = verbflag+" "+flag
-					#	print (G+" [V]"+W+"    "+O+	verbflag + W)
-					
-					#get frames with mediainfo
-					cmd_med = ["mediainfo", "--Inform=Video;%FrameCount%", media.path]
-					frames = float(check_output(cmd_med))
-					
-					#widgets for the progressbar
-					widgets = [GR+" [-]"+W+" starting conversion ("+str(current)+"/"+str(len(RUN_CONFIG.TOCONVERT))+")\t",' ',Percentage(), ' ', Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()]
-					
-					#open progress and set stdout / stderr
-					pipe = Popen(cmd,stderr=PIPE,close_fds=True)
-					fcntl.fcntl(pipe.stderr.fileno(),fcntl.F_SETFL,fcntl.fcntl(pipe.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK)
-					
-					prev=0
-					pbar = ProgressBar(widgets=widgets, maxval=frames,redirect_stdout=True,redirect_stderr=True)
-					pbar.start()
-					time.sleep(2)
-					
-					#check progress
-					while pipe.poll() is None:
-						readx = select.select([pipe.stderr.fileno()], [], [])[0]
-						if readx:
-							chunk = pipe.stderr.read()
-							
-							if chunk == '':
-								break
-							m = re.findall(r'\d+',chunk)
-							out = m[0]
-						
-							if out.isdigit():
-								num = int(out)
+					if chunk == '':
+						break
+					m = re.findall(r'\d+',chunk)
+					out = m[0]
 				
-							if num > prev and num >= 0 and num <= frames:
-								widgets[6] = FormatLabel(m[1]+" FPS")
-								pbar.update(num)
-								prev=num
-					pbar.finish()
-					check_sanity(media,output,RUN_CONFIG)
-				except KeyboardInterrupt:
-					print (R+'\n (^C)'+O+' interrupted\n'+W)
-					RUN_CONFIG.exit_gracefully(1)
-				except:
-					print (R+" [!]"+W+" error in: "+O+media.path+W+"."+W)
-					continue
-				
-				current+=1	
-	
-		time_ended = time.time()
-		time_total = time_ended-time_started
-		print (GR+" [-]"+W+" converting done. This took us "+str(datetime.timedelta(seconds=time_total))+" "+W)	
-	except KeyboardInterrupt:
-		print (R+'\n (^C)'+O+' conversion interrupted'+W)
-		RUN_CONFIG.exit_gracefully(1)
+					if out.isdigit():
+						num = int(out)
+		
+					if num > prev and num >= 0 and num <= frames:
+						widgets[6] = FormatLabel(m[1]+" FPS")
+						pbar.update(num)
+						prev=num
+			pbar.finish()
+			check_sanity(media,output,RUN_CONFIG)
+		except (KeyboardInterrupt, SystemExit):
+			if pbar:
+				pbar.finish()
+			
+			if os.path.isfile(output):
+				os.remove(output)
+			
+			print (R+'\n (^C)'+O+' interrupted\n'+W)
+			RUN_CONFIG.exit_gracefully(1)
+		except:
+			print (R+" [!]"+W+" error in: "+O+media.path+W+"."+W)
+			continue
+		
+		current+=1	
+
+	time_ended = time.time()
+	time_total = time_ended-time_started
+	print (GR+" [-]"+W+" converting done. This took us "+str(datetime.timedelta(seconds=time_total))+" "+W)	
 
 def check_sanity(media,newfile,RUN_CONFIG):
 	"""
