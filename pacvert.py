@@ -44,7 +44,14 @@ except ImportError:
 	print "Please install tvdb_api first."
 	print "sudo pip install tvdb_api"
 	exit(1)
-
+	
+try:
+	import tmdb3
+except ImportError:
+	print "Please install tmdb3 first."
+	print "sudo pip install tmdb3"
+	exit(1)
+	
 from sys import argv          # Command-line arguments
 from sys import stdout, stdin # Flushing
 
@@ -62,7 +69,7 @@ import urllib2
 # Global Variables in all caps #
 ################################
 
-VERSION = 2.1;
+VERSION = 2.2;
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -85,7 +92,229 @@ DN = open(os.devnull, 'w')
 ###################
 # DATA STRUCTURES #
 ###################
+class MetaData:
+	"""
+		Note: This is a port of Behan Websters and Douglas Stebilas Perl-Script
+		https://code.google.com/p/subler/source/browse/trunk/Utilities/ParseFilename/lib/Video/Filename.pm
+	"""
+	def __init__(self,filename):
+		self.filename = str(self.santise_filename(filename)).lower()
+		
+	def isMovie(self):
+		if len(self.dvd_episode_support()) > 0:
+			return False
+		
+		if len(self.tv_show_support()) > 0:
+			return False
+					
+		if len(self.tv_show_support_three()) > 0:
+			return False
+			
+		if len(self.tv_show_support_season_only()) > 0:
+			return False
+		
+		return True
+		
+	def do_magic(self):
+		ret = []
+		
+		if len(ret) == 0 and len(self.dvd_episode_support()) > 0:
+			ret	= self.dvd_episode_support()
+		
+		if len(ret) == 0 and len(self.tv_show_support()) > 0:
+			ret = self.tv_show_support()
+		
+		#Broken
+		#sre_constants.error: nothing to repeat
+		#if len(ret) == 0 and len(self.movie_imdb_support()) > 0:
+		#	ret = self.movie_imdb_support()
+			
+		if len(ret) == 0 and len(self.movie_and_year_support()) > 0:
+			ret = self.movie_and_year_support()
+			
+		if len(ret) == 0 and len(self.tv_show_support_two()) > 0:
+			ret = self.tv_show_support_two()
+			
+		if len(ret) == 0 and len(self.tv_show_support_three()) > 0:
+			ret = self.tv_show_support_three()
+			
+		if len(ret) == 0 and len(self.tv_show_support_season_only()) > 0:
+			ret = self.tv_show_support_season_only()
+			
+		if len(ret) == 0 and len(self.tv_show_support_episode_only()) > 0:
+			ret = self.tv_show_support_episode_only()
+			
+		if len(ret) == 0 and len(self.default_movie_support()) > 0:
+			ret = self.default_movie_support()
+		
+		return ret
+	
+	def getMetaData(self):
+		"""
+			Returns ffmpeg metadata
+		"""
+		try:
+			ret = []
+			if self.isMovie():
+				"""
+					Following Metadata:
+				"""
+			
+				info = self.fetch_movie_info()
+				ret.append("-metadata title='"+info.title+"'")			
+				ret.append("-metadata artist=''")
+			
+				ret.append("-metadata genre=''")
+				ret.append("-metadata date='"+str(info.releasedate)+"'")
+				ret.append("-metadata description='"+info.overview+"'")
+				ret.append("-metadata synopsis='"+info.overview+"'")
+				ret.append("-metadata copyright=''")
+				ret.append("-metadata hd_video=''")
+				ret.append("-metadata media_type='9'")
+			else:
+				"""
+					Following Metadata:
+				"""
+				info = self.fetch_tv_info()
+			
+				series_info		= info[0]
+				episode_info	= info[1]
+				ret.append("-metadata title='"+episode_info["episodename"]+"'")
+				ret.append("-metadata artist='"+series_info["seriesname"]+"'")
+				ret.append("-metadata album='"+series_info["seriesname"]+", Season "+episode_info["seasonnumber"]+"'")
+				ret.append("-metadata genre='"+series_info["genre"]+"'")
+				ret.append("-metadata date='"+episode_info["firstaired"]+"'")
+				ret.append("-metadata track='"+episode_info["episodenumber"]+"'")
+				ret.append("-metadata show='"+series_info["seriesname"]+"'")
+				ret.append("-metadata network='"+series_info["network"]+"'")
+				ret.append("-metadata episode_id='"+episode_info["combined_episodenumber"]+"'")
+				ret.append("-metadata season_number='"+episode_info["seasonnumber"]+"'")
+				ret.append("-metadata episode_sort='"+episode_info["combined_episodenumber"]+"'")
+				ret.append("-metadata description='"+episode_info["overview"]+"'")
+				ret.append("-metadata synopsis='"+episode_info["overview"]+"'")
+				ret.append("-metadata media_type='10'")
+		
+			return ret
+		except ValueError:
+			return []
+	
+	def fetch_tv_info(self):
+		"""
+			Fetch Info from thetvdb
+		"""
+		
+		if "german" in self.filename:
+			t = tvdb_api.Tvdb(language="de")
+		else:
+			t = tvdb_api.Tvdb()
+		
+		magic = self.do_magic()
+		
+		if len(magic) > 0 and not self.isMovie():
+			try:
+				return [t[magic[0][0].replace("."," ")], t[magic[0][0].replace("."," ")][int(magic[0][1])][int(magic[0][2])]]
+			except:
+				return []
+				
+	def fetch_movie_info(self):
+		"""
+			Fetch Info from themoviedb
+		"""
+		
+		t = tmdb3
+		t.set_key('dc118a541bde524480c6c71398eca04c')
+		t.set_cache('null')
+				
+		if "german" in self.filename:
+			t.set_locale('de', 'de')
+		
+		magic = self.do_magic()
+		
+		if len(magic) > 0 and self.isMovie():
+			try:
+				return t.searchMovie(magic[0][0].replace("."," "))[0]
+			except:
+				return []
+	
+	def santise_filename(self,filename):
+		"""
+			Remove bits of the filename that cause a problem.
 
+			Initially added to deal specifically with the issues 720[p] causes
+			in filenames by appearing before or after the season/episode block.
+		"""
+		items = (('_', '.'),(' ', '.'),('.720p', ''),('.720', ''),('.1080p', ''),('.1080', ''),('.H.264', ''),('.h.264', ''),)
+		
+		for target, replacement in items:
+			filename = filename.replace(target, replacement)
+		return filename
+	
+	def dvd_episode_support(self):
+		"""
+			DVD Episode Support
+			Example: DddEee
+		"""
+		regex	= re.compile(ur'^(?:(.*?)[\/\s._-]+)?(?:d|dvd|disc|disk)[\s._]?(\d{1,2})[x\/\s._-]*(?:e|ep|episode)[\s._]??(\d{1,2})(?:-?(?:(?:e|ep)[\s._]*)?(\d{1,2}(?:\.\d{1,2})?))?(?:[\s._]?(?:p|part)[\s._]?(\d+))?([a-z])?(?:[\/\s._-]*([^\/]+?))?$')
+		return re.findall(regex,self.filename)
+	
+	def tv_show_support(self):
+		"""
+			TV Show Support
+			Example: SssEee or Season_ss_Episode_ss
+		"""
+		regex	= re.compile(ur'^(?:(.*?)[\/\s._-]+)?(?:s|se|season|series)[\s._-]?(\d+)[x\/\s._-]*(?:e|ep|episode|[\/\s._-]+)[\s._-]?(\d+)(?:-?(?:(?:e|ep)[\s._]*)?(\d+))?(?:[\s._]?(?:p|part)[\s._]?(\d+))?([a-z])?(?:[\/\s._-]*([^\/]+?))?$')
+		return re.findall(regex,self.filename)
+	
+	def movie_imdb_support(self):
+		"""
+			Movie IMDB Support
+		"""
+		regex	= re.compile(ur'^(.*?)?(?:[\/\s._-]*\[?((?:19|20)\d{2})\]?)?(?:[\/\s._-]*\[?(?:(?:imdb|tt)[\s._-]*)*(\d{7})\]?)(?:[\s._-]*([^\/]+?))?$')
+		return re.findall(regex,self.filename)
+	
+	def movie_and_year_support(self):
+		"""
+			Movie + Year Support
+		"""
+		regex	= re.compile(ur'^(?:(.*?)[\/\s._-]*)?\[?\(?((?:19|20)\d{2})\)?\]?(?:[\s._-]*([^\/]+?))?$')
+		return re.findall(regex,self.filename)
+	
+	def tv_show_support_two(self):
+		"""
+			TV Show Support
+			Example: see
+		"""
+		regex	= re.compile(ur'^(?:(.*?)[\/\s._-]*)?(\d{1,2}?)(\d{2})(?:[^0-9][\s._-]*(.+?))?$')
+		return re.findall(regex,self.filename)
+	
+	def tv_show_support_three(self):
+		"""
+			TV Show Support - sxee
+		"""
+		regex	= re.compile(ur'^(?:(.*?)[\/\s._-]*)?\[?(\d{1,2})[x\/](\d{1,2})(?:-(?:\d{1,2}x)?(\d{1,2}))?\]?(?:[\s._-]*([^\/]+?))?$')
+		return re.findall(regex,self.filename)
+	
+	def tv_show_support_season_only(self):
+		"""
+			TV Show Support - season only
+		"""
+		regex	= re.compile(ur'^(?:(.*?)[\/\s._-]+)?(?:s|se|season|series)[\s._]?(\d{1,2})(?:[\/\s._-]*([^\/]+?))?$')
+		return re.findall(regex,self.filename)
+	
+	def tv_show_support_episode_only(self):
+		"""
+			TV Show Support - episode only
+		"""
+		regex	= re.compile(ur'^(?:(.*?)[\/\s._-]*)?(?:(?:e|ep|episode)[\s._]?)?(\d{1,2})(?:-(?:e|ep)?(\d{1,2}))?(?:(?:p|part)(\d+))?([a-z])?(?:[\/\s._-]*([^\/]+?))?$')
+		return re.findall(regex,self.filename)
+	
+	def default_movie_support(self):
+		"""
+			Default Movie Support
+		"""
+		regex	= re.compile(ur'^(.*)$')		
+		return re.findall(regex,self.filename)
+		
 class StreamInfo:
 	"""
 		Holds data for a Stream
@@ -278,6 +507,7 @@ class RunConfiguration:
 		self.DEFAULT_DELETEFILE=False
 		self.DEFAULT_FILEFORMAT=""
 		self.DEFAULT_NICE=15
+		self.DEFAULT_META=False
 		self.DEFAULT_OUTPUTDIR=os.getcwd()+"/output"
 		self.DEFAULT_SHUTDOWN=False
 		self.TOCONVERT=[]
@@ -382,6 +612,10 @@ class RunConfiguration:
 			if not options.nocrop:
 				print GR + ' [+]' + W + ' disable cropping'+ W + '.'
 				self.DEFAULT_CROPPING=options.nocrop
+			
+			if options.meta:
+				print GR + ' [+]' + W + ' enable metadata download'+ W +'.'
+				self.DEFAULT_META=True
 				
 			if options.shutdown:
 				if options.shutdown and self.ConfirmRunningAsRoot():
@@ -424,6 +658,7 @@ class RunConfiguration:
 		command_group.add_argument('--ext', help='Change output extension.', action='store', dest='ext', choices=['m4v','mkv'])
 		command_group.add_argument('--nice', help='Change nice value.', action='store', dest='nice', type=int)
 		command_group.add_argument('--nocrop', help='Disable cropping', action='store_false', dest='nocrop')
+		command_group.add_argument('--meta', help='Enable meta download', action='store_true', dest='meta')
 		command_group.add_argument('--outdir', help='Change outdir to <directory>.', action='store', dest='directory')
 		command_group.add_argument('--rmfile', help='Remove original video.', action='store_true', dest='rmfile')
 		command_group.add_argument('--shutdown', help='Shutdown after finishing all jobs.', action='store_true', dest='shutdown')
@@ -1165,8 +1400,9 @@ def check_sanity(media,newfile,RUN_CONFIG):
 			diff = abs(previous_frames-new_frames)
 			
 			#check frame count
-			if RUN_CONFIG.DEFAULT_DELETEFILE and diff <= 10 and RUN_CONFIG.DEFAULT_VERBOSE:
-				print (O+" [W]"+W+" passed sanity check - deleting file"+W)
+			if RUN_CONFIG.DEFAULT_DELETEFILE and diff <= 10:
+				if RUN_CONFIG.DEFAULT_VERBOSE:
+					print (G+" [V]"+W+" passed sanity check - "+O+"deleting"+W+" file"+W)
 				os.remove(media.path)
 			elif RUN_CONFIG.DEFAULT_DELETEFILE and diff > 10:
 				print (R+" [!]"+W+" failed sanity check - keeping file"+W)
@@ -1177,6 +1413,21 @@ def check_sanity(media,newfile,RUN_CONFIG):
 			#chown new file, if necessary
 			if RUN_CONFIG.DEFAULT_CHOWN != "":
 				os.system("sudo chown "+RUN_CONFIG.DEFAULT_CHOWN+" "+newfile)
+			
+			if RUN_CONFIG.DEFAULT_META:
+				meta = MetaData(media.name)
+				
+				if meta:
+					if meta.isMovie():
+						info = meta.fetch_movie_info()
+						year = datetime.strptime(info.releasedate, '%Y-%m-%d').year
+						
+						os.rename(newfile,RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+info.title+" ("+year+")."+RUN_CONFIG.DEFAULT_FILEFORMAT)
+					else:
+						info = meta.fetch_tv_info()
+						series_info		= info[0]
+						episode_info	= info[1]
+						os.rename(newfile,RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+series_info["seriesname"]+" - S"+episode_info["seasonnumber"].zfill(2) +"E"+episode_info["episodenumber"].zfill(2) +"."+RUN_CONFIG.DEFAULT_FILEFORMAT)
 	except KeyboardInterrupt:
 		print (R+'\n (^C)'+O+' interrupted\n'+W)
 	except:
