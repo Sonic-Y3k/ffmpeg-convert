@@ -116,38 +116,34 @@ class MetaData:
 		return True
 		
 	def do_magic(self):
-		ret = []
+		if len(self.dvd_episode_support()) > 0:
+			return self.dvd_episode_support()
 		
-		if len(ret) == 0 and len(self.dvd_episode_support()) > 0:
-			ret	= self.dvd_episode_support()
-		
-		if len(ret) == 0 and len(self.tv_show_support()) > 0:
-			ret = self.tv_show_support()
+		if len(self.tv_show_support()) > 0:
+			return self.tv_show_support()
 		
 		#Broken
 		#sre_constants.error: nothing to repeat
 		#if len(ret) == 0 and len(self.movie_imdb_support()) > 0:
 		#	ret = self.movie_imdb_support()
-			
-		if len(ret) == 0 and len(self.movie_and_year_support()) > 0:
-			ret = self.movie_and_year_support()
-			
-		if len(ret) == 0 and len(self.tv_show_support_two()) > 0:
-			ret = self.tv_show_support_two()
-			
-		if len(ret) == 0 and len(self.tv_show_support_three()) > 0:
-			ret = self.tv_show_support_three()
-			
-		if len(ret) == 0 and len(self.tv_show_support_season_only()) > 0:
-			ret = self.tv_show_support_season_only()
-			
-		if len(ret) == 0 and len(self.tv_show_support_episode_only()) > 0:
-			ret = self.tv_show_support_episode_only()
-			
-		if len(ret) == 0 and len(self.default_movie_support()) > 0:
-			ret = self.default_movie_support()
+				
+		if len(self.tv_show_support_two()) > 0:
+			return self.tv_show_support_two()
 		
-		return ret
+		if len(self.tv_show_support_three()) > 0:
+			return self.tv_show_support_three()
+			
+		if len(self.tv_show_support_season_only()) > 0:
+			return self.tv_show_support_season_only()
+			
+		if len(self.tv_show_support_episode_only()) > 0:
+			return self.tv_show_support_episode_only()
+		
+		if len(self.movie_and_year_support()) > 0:
+			return self.movie_and_year_support()
+			
+		if len(self.default_movie_support()) > 0:
+			return self.default_movie_support()
 	
 	def getMetaData(self):
 		"""
@@ -210,7 +206,7 @@ class MetaData:
 		
 		magic = self.do_magic()
 		
-		if len(magic) > 0 and not self.isMovie():
+		if len(magic) > 0:
 			try:
 				return [t[magic[0][0].replace("."," ")], t[magic[0][0].replace("."," ")][int(magic[0][1])][int(magic[0][2])]]
 			except:
@@ -230,7 +226,7 @@ class MetaData:
 		
 		magic = self.do_magic()
 		
-		if len(magic) > 0 and self.isMovie():
+		if len(magic) > 0:
 			try:
 				return t.searchMovie(magic[0][0].replace("."," "))[0]
 			except:
@@ -1332,6 +1328,9 @@ def convert_files(RUN_CONFIG,callback=None):
 			cmd_med = ["mediainfo", "--Inform=Video;%FrameCount%", media.path]
 			frames = float(check_output(cmd_med))
 			
+			if RUN_CONFIG.DEFAULT_VERBOSE:
+				print (G+" [V]"+W+" converting: "+O+media.path+W)
+			
 			#widgets for the progressbar
 			widgets = [GR+" [-]"+W+" starting conversion ("+str(current)+"/"+str(len(RUN_CONFIG.TOCONVERT))+")\t",' ',Percentage(), ' ', Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()]
 			
@@ -1420,20 +1419,21 @@ def check_sanity(media,newfile,RUN_CONFIG):
 				meta = MetaData(media.name)
 				
 				if meta:
-					if meta.isMovie():
-						if RUN_CONFIG.DEFAULT_VERBOSE:
-							print (G+" [V]"+W+"   found: "+O+info.title+" ("+year+")."+RUN_CONFIG.DEFAULT_FILEFORMAT+W)
-						info = meta.fetch_movie_info()
-						year = datetime.strptime(info.releasedate, '%Y-%m-%d').year
-						
-						os.rename(newfile,RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+info.title+" ("+year+")."+RUN_CONFIG.DEFAULT_FILEFORMAT)
-					else:
+					if meta.fetch_tv_info():
 						info = meta.fetch_tv_info()
 						series_info		= info[0]
 						episode_info	= info[1]
 						if RUN_CONFIG.DEFAULT_VERBOSE:
 							print (G+" [V]"+W+"   found: "+O+series_info["seriesname"]+" - S"+episode_info["seasonnumber"].zfill(2) +"E"+episode_info["episodenumber"].zfill(2) +"."+RUN_CONFIG.DEFAULT_FILEFORMAT+W)
 						os.rename(newfile,RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+series_info["seriesname"]+" - S"+episode_info["seasonnumber"].zfill(2) +"E"+episode_info["episodenumber"].zfill(2) +"."+RUN_CONFIG.DEFAULT_FILEFORMAT)
+					elif meta.fetch_movie_info():
+						if RUN_CONFIG.DEFAULT_VERBOSE:
+							print (G+" [V]"+W+"   found: "+O+info.title+" ("+year+")."+RUN_CONFIG.DEFAULT_FILEFORMAT+W)
+						info = meta.fetch_movie_info()
+						year = datetime.strptime(info.releasedate, '%Y-%m-%d').year
+						
+						os.rename(newfile,RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+info.title+" ("+year+")."+RUN_CONFIG.DEFAULT_FILEFORMAT)
+						
 	except KeyboardInterrupt:
 		print (R+'\n (^C)'+O+' interrupted\n'+W)
 	except:
