@@ -1415,10 +1415,14 @@ def check_sanity(media,newfile,RUN_CONFIG):
 				os.system("sudo chown "+RUN_CONFIG.DEFAULT_CHOWN+" "+newfile)
 			
 			if RUN_CONFIG.DEFAULT_META:
+				if RUN_CONFIG.DEFAULT_VERBOSE:
+					print (G+" [V]"+W+" searching "+O+"metadata"+W)
 				meta = MetaData(media.name)
 				
 				if meta:
 					if meta.isMovie():
+						if RUN_CONFIG.DEFAULT_VERBOSE:
+							print (G+" [V]"+W+"   found: "+O+info.title+" ("+year+")."+RUN_CONFIG.DEFAULT_FILEFORMAT+W)
 						info = meta.fetch_movie_info()
 						year = datetime.strptime(info.releasedate, '%Y-%m-%d').year
 						
@@ -1427,6 +1431,8 @@ def check_sanity(media,newfile,RUN_CONFIG):
 						info = meta.fetch_tv_info()
 						series_info		= info[0]
 						episode_info	= info[1]
+						if RUN_CONFIG.DEFAULT_VERBOSE:
+							print (G+" [V]"+W+"   found: "+O+series_info["seriesname"]+" - S"+episode_info["seasonnumber"].zfill(2) +"E"+episode_info["episodenumber"].zfill(2) +"."+RUN_CONFIG.DEFAULT_FILEFORMAT+W)
 						os.rename(newfile,RUN_CONFIG.DEFAULT_OUTPUTDIR+"/"+series_info["seriesname"]+" - S"+episode_info["seasonnumber"].zfill(2) +"E"+episode_info["episodenumber"].zfill(2) +"."+RUN_CONFIG.DEFAULT_FILEFORMAT)
 	except KeyboardInterrupt:
 		print (R+'\n (^C)'+O+' interrupted\n'+W)
