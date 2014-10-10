@@ -18,7 +18,7 @@
 ################################
 
 # Version
-VERSION = 3.0;
+VERSION = 3.1;
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -1176,6 +1176,7 @@ if __name__ == '__main__':
                 PacConf.TOCONVERT.remove(i)
                 continue
         
+        for i in PacConf.TOCONVERT:
             cmd_med = ["mediainfo", "--Inform=Video;%FrameCount%", i.path]
             frames = float(check_output(cmd_med))
             conv = i.convert()
