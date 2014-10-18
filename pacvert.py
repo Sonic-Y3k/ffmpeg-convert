@@ -18,7 +18,7 @@
 ################################
 
 # Version
-VERSION = 3.1;
+VERSION = 3.2;
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -57,7 +57,7 @@ DN = open(os.devnull,'w')
 # Data Structures #
 ###################
 
-class FFMpegConvertError(Exception):
+class ToolConvertError(Exception):
     def __init__(self, message, cmd, output, details=None, pid=0):
         """
         @param message: Error message.
@@ -72,7 +72,7 @@ class FFMpegConvertError(Exception):
         @param details: Optional error details.
         @type details: C{str}
         """
-        super(FFMpegConvertError, self).__init__(message)
+        super(ToolConvertError, self).__init__(message)
         self.cmd = cmd
         self.output = output
         self.details = details
@@ -80,7 +80,7 @@ class FFMpegConvertError(Exception):
 
     def __repr__(self):
         error = self.details if self.details else self.message
-        return ('<FFMpegConvertError error="%s", pid=%s, cmd="%s">' % (error, self.pid, self.cmd))
+        return ('<ToolConvertError error="%s", pid=%s, cmd="%s">' % (error, self.pid, self.cmd))
 
     def __str__(self):
         return self.__repr__()
@@ -596,6 +596,7 @@ class PacMedia:
         self.path = path
         self.name = name
         self.format = PacMediaFormatInfo()
+        self.frames = 0
         self.streams = []
         self.streammap = ""
         self.streamopt = ""
@@ -703,6 +704,7 @@ class PacMedia:
 
         for c in self.streams:
             if c.type == "video":
+                self.frames = round(c.duration*c.video_fps)+1
                 self.add_streammap("-map 0:"+str(c.index))
 
                 if crf < self.PacConf.DEFAULT_CRF:
@@ -948,81 +950,274 @@ class PacMedia:
                             print (G+" [V]"+O+"    -c:s:"+str(self.subCount)+" mov_text"+W)
                             print (G+" [V]"+O+"    -metadata:s:s:"+str(self.subCount)+" language="+c.language+W)
 
-    def convert_subtitle(self,index,lang,codec):
+    def convert_subtitle_step1(self,cmds,timeout=10):
+        """
+            Extracts a subtitle from
+            source file.
+        """
+        if timeout:
+            def on_sigalrm(*_):
+                signal.signal(signal.SIGALRM,signal.SIG_DFL)
+                raise Exception("timed out while waiting for mkvextract")
+            signal.signal(signal.SIGALRM,on_sigalrm)
+
+        try:
+            p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
+        except OSError:
+            raise Exception("Error while calling mkvextract binary")
+
+        yielded = False
+        buf = ""
+        total_output = ""
+        pat = re.compile(r'[A-Za-z]*: ([0-9]*)')
+
+        while True:
+            if timeout:
+                signal.alarm(timeout)
+
+            ret = p.stdout.read(10)
+
+            if timeout:
+                signal.alarm(0)
+
+            if not ret:
+                break
+
+            ret = ret.decode("ISO-8859-1")
+            total_output += ret
+            buf += ret
+
+            if "\r" in buf:
+                line,buf = buf.split("\r", 1)
+                tmp = pat.findall(line)
+
+                if len(tmp) == 1:
+                    yielded = True
+                    yield tmp[0]
+        if timeout:
+            signal.signal(signal.SIGALRM,signal.SIG_DFL)
+
+        p.communicate()
+
+        if total_output == "":
+            raise Exception("Error while calling mkvextract binary")
+        
+        cmd = " ".join(cmds)
+        if "\n" in total_output:
+            line = total_output.split("\n")[-2]
+            if line.startswith("Received signal"):
+                raise ToolConvertError(line.split(':')[0], cmd, total_output,pid=p.pid)
+            if not yielded:
+                 raise ToolConvertError('Unknown mkvextract error', cmd,total_output, line, pid=p.pid)
+        if p.returncode != 0:
+            raise ToolConvertError('Exited with code %d' % p.returncode,cmd,total_output, pid=p.pid)
+
+    def convert_subtitle_step2(self,cmds,timeout=10):
+        """
+            Extracts a subtitle from
+            source file.
+        """
+        if timeout:
+            def on_sigalrm(*_):
+                signal.signal(signal.SIGALRM,signal.SIG_DFL)
+                raise Exception("timed out while waiting for bdsup2subpp")
+            signal.signal(signal.SIGALRM,on_sigalrm)
+
+        try:
+            p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
+        except OSError:
+            raise Exception("Error while calling bdsup2subpp binary")
+
+        yielded = False
+        buf = ""
+        total_output = ""
+        pat = re.compile(r'[A-Za-z ]*([0-9]*)\/([0-9]*)')
+
+        while True:
+            if timeout:
+                signal.alarm(timeout)
+
+            ret = p.stdout.read(10)
+
+            if timeout:
+                signal.alarm(0)
+
+            if not ret:
+                break
+
+            ret = ret.decode("ISO-8859-1")
+            total_output += str(ret)
+            buf += str(ret)
+            if "\n" in buf:
+                line,buf = buf.split("\n", 1)
+                tmp = pat.findall(line)
+
+                if len(tmp) == 1 and tmp[0][0] is not "" and tmp[0][1] is not "":
+                    yielded = True
+                    yield tmp[0]
+        if timeout:
+            signal.signal(signal.SIGALRM,signal.SIG_DFL)
+
+        p.communicate()
+
+        if total_output == "":
+            raise Exception("Error while calling bdsup2subpp binary")
+        
+        cmd = " ".join(cmds)
+        if "\n" in total_output:
+            line = total_output.split("\n")[-2]
+            if line.startswith("Received signal"):
+                raise ToolConvertError(line.split(':')[0], cmd, total_output,pid=p.pid)
+            if not yielded:
+                raise ToolConvertError('Unknown bdsup2subpp error', cmd,total_output, line, pid=p.pid)
+        if p.returncode != 0:
+            raise ToolConvertError('Exited with code %d' % p.returncode,cmd,total_output, pid=p.pid)
+
+    def convert_subtitle_step3(self,cmds,timeout=10):
+        """
+            Extracts a subtitle from
+            source file.
+        """
+        if timeout:
+            def on_sigalrm(*_):
+                signal.signal(signal.SIGALRM,signal.SIG_DFL)
+                raise Exception("timed out while waiting for vobsub2srt")
+            signal.signal(signal.SIGALRM,on_sigalrm)
+        
+        try:
+            test = Popen([self.PacConf.DEFAULT_TESSERACT, "--list-langs"], stdout=PIPE, stderr=PIPE)
+            data = test.communicate()[1].split()
+            lang = str(cmds[2])
+            if lang not in str(data):
+                cmds.remove(lang)
+                cmds.remove("--tesseract-lang")
+
+            p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
+        except OSError:
+            raise Exception("Error while calling vobsub2srt binary")
+
+        yielded = False
+        buf = ""
+        total_output = ""
+        pat = re.compile(r'([0-9]*).*')
+        
+        while True:
+            if timeout:
+                signal.alarm(timeout)
+
+            ret = p.stdout.readline()
+        
+            if timeout:
+                signal.alarm(0)
+
+            if not ret:
+                break
+
+            ret = ret.decode("ISO-8859-1")
+            total_output += ret
+            buf += ret
+
+            tmp = pat.findall(ret)
+            if tmp[0] is not "" and tmp[0].isdigit():
+                yielded = True
+                yield tmp[0]
+
+        if timeout:
+            signal.signal(signal.SIGALRM,signal.SIG_DFL)
+
+        p.communicate()
+
+        if total_output == "":
+            raise Exception("Error while calling vobsub2srt binary")
+        
+        cmd = " ".join(cmds)
+        if "\n" in total_output:
+            line = total_output.split("\n")[-2]
+            if line.startswith("Error opening data file"):
+                raise ToolConvertError("Tesseract language not found.", cmd, total_output,pid=p.pid)
+            if line.startswith("Received signal"):
+                raise ToolConvertError(line.split(':')[0], cmd, total_output,pid=p.pid)
+            if not yielded:
+                 raise ToolConvertError('Unknown vobsub2srt error', cmd,total_output, line, pid=p.pid)
+        if p.returncode != 0:
+            raise ToolConvertError('Exited with code %d' % p.returncode,cmd,total_output, pid=p.pid)
+
+
+    def convert_subtitle(self,index,lang,codec,timeout=10):
         """
             Converts subtitle to srt
         """
         tempFileName=self.PacConf.TEMP+os.path.splitext(os.path.basename(self.path))[0]+"."+str(index)
         cmd_mkvextract=[self.PacConf.DEFAULT_MKVEXTRACT,"tracks",self.path,str(index)+":"+tempFileName+".sup"]
         cmd_bdsup2subpp=[self.PacConf.DEFAULT_BDSUP2SUBPP,"-o",tempFileName+".sub",tempFileName+".sup"]
-        cmd_vobsub2srt=[self.PacConf.DEFAULT_VOBSUB2SRT,"--tesseract-lang",lang,"-tesseract-data","/usr/share/tessdata",tempFileName,"--verbose"]
-
-        proc_mkvextract = Popen(cmd_mkvextract, stdout=PIPE)
+        
+        if os.path.isdir("/usr/share/tessdata"):
+            tessdata = "/usr/share/tessdata"
+        else:
+            tessdata = "/usr/local/share/tessdata"
+        
+        cmd_vobsub2srt=[self.PacConf.DEFAULT_VOBSUB2SRT,"--tesseract-lang",lang,"--tesseract-data",tessdata,tempFileName,"--verbose"]
+    
+        #First Block, let's extract the subtitle from file.
         widgets = [GR+" [-]"+W+" extracting subtitle\t",Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',ETA()]
         pbar = ProgressBar(widgets=widgets, maxval=100)
         pbar.start()
-        prev=0
-        while proc_mkvextract.poll() is None:
-            if not proc_mkvextract.stdout: break
-            out = os.read(proc_mkvextract.stdout.fileno(), 1024)
-            if out != "":
-                try:
-                    out = int(re.sub("[^0-9]", "", str(out)))
-                except ValueError:
-                    out = 100
-                if out > prev and out >= 0 and out <= 100: 
-                    pbar.update(out)
-                    prev=out
-                stdout.flush()
+        step1 = self.convert_subtitle_step1(cmd_mkvextract)
+        pval = 0
+        for val in step1:
+            try:
+                temp = int (val)
+            except TypeError:
+                temp = pval
+
+            if temp > pval and temp < 101:
+                pbar.update(temp)
+                pval = temp
         pbar.finish()
 
+        #Second Block, extract frames from subtitle
         widgets = [GR+" [-]"+W+" extracting frames  \t",Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',ETA()]
         pbar = ProgressBar(widgets=widgets, maxval=100.0)
         pbar.start()
-        proc_bdsup2subpp  = Popen(cmd_bdsup2subpp, stderr=DN, stdout=PIPE)
-        prev=0.0
-        num=0.0
-        while proc_bdsup2subpp.poll() is None:
-            if not proc_bdsup2subpp.stdout: break
-            out = os.read(proc_bdsup2subpp.stdout.fileno(), 1024)
-            if "Decoding frame" in str(out):
-                out=str(out)
-                out=out.split(" ")
-                out=out[2].split("/")
-                try:
-                    num=round(float(out[0])/float(out[1])*100)
-                except:
-                    num=0.0
-                if num > prev and num >= 0 and num <= 100.0: 
-                    pbar.update(num)
-                    prev=num
-        pbar.finish()
+        step2 = self.convert_subtitle_step2(cmd_bdsup2subpp)
+        pval = 0.0
+        for val in step2:
+            try:
+                temp = float(int(val[0])/int(val[1]))*100
+            except TypeError:
+                temp = pval
 
+            if temp > pval and temp <= 1:
+                pbar.update(temp)
+                pval = temp
+        pbar.finish()
+        
+        #Third Block, ocr extracted frames
         widgets = [GR+" [-]"+W+" using ocr on frames\t",Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',ETA()]
         length=0
         ins = open(tempFileName+'.idx', "r")
         for line in ins:
             if "timestamp" in line:
-                length+=1
-        
+                 length+=1
         pbar = ProgressBar(widgets=widgets, maxval=length)
         pbar.start()
-        proc_vobsub2srt = Popen(cmd_vobsub2srt, stderr=DN, stdout=PIPE)
-        prev=0
-        while proc_vobsub2srt.poll() is None:
-            if not proc_vobsub2srt.stdout: break
-            out = os.read(proc_vobsub2srt.stdout.fileno(), 1024)
-            out = str(out)
-            out = out.split(" ")
-            out = out[0]
-            if out.isdigit():
-                num = int(out)
+        step3 = self.convert_subtitle_step3(cmd_vobsub2srt)
+        pval = 0
+        for val in step3:
+            try:
+                temp = int(val)
+            except TypeError:
+                temp = pval
 
-            if num == prev+1 and num >= 0 and num <= length:
-                pbar.update(num)
-                prev=num
+            if temp > pval and temp <= length:
+                pbar.update(temp)
+                pval = temp
         pbar.finish()
-        return tempFileName+".srt"
+
+        if os.path.isfile(tempFileName+".srt"):
+            return tempFileName+".srt"
+        else:
+            return ""
 
     def convert(self,timeout=10):
         if not os.path.exists(self.path):
@@ -1087,42 +1282,58 @@ class PacMedia:
             line = total_output.split("\n")[-2]
 
             if line.startswith("Received signal"):
-                raise FFMpegConvertError(line.split(':')[0], cmd, total_output,pid=p.pid)
+                raise ToolConvertError(line.split(':')[0], cmd, total_output,pid=p.pid)
             if line.startswith(self.path + ': '):
                 err = line[len(self.path) + 2:]
-                raise FFMpegConvertError('Encoding error',cmd,total_output,err,pid=p.pid)
+                raise ToolConvertError('Encoding error',cmd,total_output,err,pid=p.pid)
             if line.startswith('Error while '):
-                raise FFMpegConvertError('Encoding error',cmd,total_output,line,pid=p.pid)
+                raise ToolConvertError('Encoding error',cmd,total_output,line,pid=p.pid)
             if not yielded:
-                raise FFMpegConvertError('Unknown ffmpeg error', cmd,total_output, line, pid=p.pid)
+                raise ToolConvertError('Unknown ffmpeg error', cmd,total_output, line, pid=p.pid)
         if p.returncode != 0:
-            raise FFMpegConvertError('Exited with code %d' % p.returncode,cmd,total_output, pid=p.pid)
+            raise ToolConvertError('Exited with code %d' % p.returncode,cmd,total_output, pid=p.pid)
             
     def check_sanity(self):
         """
         """
-        try:
-            output = self.PacConf.DEFAULT_OUTPUTDIR+"/"+self.name+"."+self.ext
-            previous_frames = float(check_output(["mediainfo","--Inform=Video;%FrameCount%", self.path]))
-            new_frames = float(check_output(["mediainfo","--Inform=Video;%FrameCount%", output]))
-            diff = abs(previous_frames-new_frames)
-            if self.PacConf.DEFAULT_DELETEFILE and diff <= 10:
-                if self.PacConf.DEFAULT_VERBOSE:
-                    print (G+" [V]"+W+" passed sanity check - "+O+"deleting"+W+" file"+W)
-                os.remove(self.path)
-            elif self.PacConf.DEFAULT_DELETEFILE and diff > 10:
-                print (R+" [!]"+W+" failed sanity check - keeping old & removing new file"+W)
-                os.remove(output)
-            elif not self.PacConf.DEFAULT_DELETEFILE and diff <= 10:
-                if self.PacConf.DEFAULT_VERBOSE:
-                    print (G+" [V]"+W+" passed sanity check - "+O+"keeping"+W+" file"+W)
-            elif not self.PacConf.DEFAULT_VERBOSE and diff > 10:
-                print (R+" [!]"+W+" failed sanity check - removing "+O+"NEW"+W+" file"+W)
-                os.remove(output)
+        # Disabling verboseity and cropping to speed up things.
+        old_v = self.PacConf.DEFAULT_VERBOSE
+        old_c = self.PacConf.DEFAULT_CROPPING
+        self.PacConf.DEFAULT_VERBOSE = False
+        self.PacConf.DEFAULT_CROPPING = False
 
-        except:
-            print (R+" [!]"+W+" Something went very [...] very wrong.")
-            self.PacConf.exit_gracefully(1)
+        #Analyze output
+        output = PacMedia(self.PacConf,self.PacConf.DEFAULT_OUTPUTDIR+"/"+self.name+"."+self.ext,self.name)
+        output.analyze()
+        output.analyze_video()
+
+        # Restore verboseity and cropping
+        self.PacConf.DEFAULT_VERBOSE = old_v
+        self.PacConf.DEFAULT_CROPPING = old_c
+
+        # Calculate difference in both files
+        pre_frames = self.frames
+        new_frames = output.frames
+        diff = int(abs(pre_frames-new_frames))
+
+        # Proceed...
+        if self.PacConf.DEFAULT_DELETEFILE and diff <= 10:
+            if self.PacConf.DEFAULT_VERBOSE:
+                print (G+" [V]"+W+" passed sanity check - "+O+"deleting"+W+" file"+W)
+            os.remove(self.path)
+        elif self.PacConf.DEFAULT_DELETEFILE and diff > 10:
+            print (R+" [!]"+W+" failed sanity check - keeping old & removing new file"+W)
+            os.remove(output)
+        elif not self.PacConf.DEFAULT_DELETEFILE and diff <= 10:
+            if self.PacConf.DEFAULT_VERBOSE:
+                print (G+" [V]"+W+" passed sanity check - "+O+"keeping"+W+" file"+W)
+        elif not self.PacConf.DEFAULT_VERBOSE and diff > 10:
+            print (R+" [!]"+W+" failed sanity check - removing "+O+"NEW"+W+" file"+W)
+            os.remove(output)
+
+        #except:
+        #    print (R+" [!]"+W+" Something went very [...] very wrong.")
+        #    self.PacConf.exit_gracefully(1)
 
 def banner():
     """
@@ -1164,34 +1375,35 @@ if __name__ == '__main__':
         print (GR+" [+]"+W+" ...found "+O+str(len(PacConf.TOCONVERT))+W+" files.")
     
         current = 1
-        widgets = [GR+" [-]"+W+" starting conversion ("+str(current)+"/"+str(len(PacConf.TOCONVERT))+")\t",' ',Percentage(), ' ', Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()]
+        for i in PacConf.TOCONVERT:
+            i.analyze()
+            i.analyze_video()
+            i.analyze_audio()
+            i.analyze_subtitles()
 
-        for i in PacConf.TOCONVERT:
-            try:
-                i.analyze()
-                i.analyze_video()
-                i.analyze_audio()
-                i.analyze_subtitles()
-            except:
-                PacConf.TOCONVERT.remove(i)
-                continue
-        
-        for i in PacConf.TOCONVERT:
-            cmd_med = ["mediainfo", "--Inform=Video;%FrameCount%", i.path]
-            frames = float(check_output(cmd_med))
+        for i in PacConf.TOCONVERT:            
             conv = i.convert()
-            last_tc = 0
-        
+            frames = i.frames
+            widgets = [GR+" [-]"+W+" convert: "+i.name[:10]+"... ("+str(current).zfill(3)+"/"+str(len(PacConf.TOCONVERT)).zfill(3)+")",' ',Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()] 
             pbar = ProgressBar(widgets=widgets,maxval=frames)
             pbar.start()
             oltime = time.time()
+            pval = 0
             for val in conv:
+                try:
+                    temp = int(val[0])
+                except TypeError:
+                    temp = pval
+
                 widgets[6] = FormatLabel(str(val[1])+" FPS")
-                pbar.update(int(val[0]))
+                if temp <= frames:
+                    pbar.update(temp)
+                    pval = temp
+                else:
+                    pbar.update(pval)
             pbar.finish()
             i.check_sanity() 
             current+=1
-        
     except KeyboardInterrupt: print(R+'\n (^C)'+O+' interrupted\n'+W)
     except EOFError: print (R+'\n (^D)'+O+' interrupted\n'+W)
 
