@@ -18,7 +18,7 @@
 ################################
 
 # Version
-VERSION = 3.4;
+VERSION = 3.5;
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -941,17 +941,19 @@ class PacMedia:
                     if self.ext == "mkv":
                         self.add_streamopt("-c:s:"+str(self.subCount)+" srt")
                         self.add_streamopt("-metadata:s:s:"+str(self.subCount)+" language="+c.language)
+                        self.subCount+=1
                         if self.PacConf.DEFAULT_VERBOSE:
                             print (G+" [V]"+O+"    -map 0:"+str(c.index)+W)
-                            print (G+" [V]"+O+"    -c:s:"+str(self.subCount)+" srt"+W)
-                            print (G+" [V]"+O+"    -metadata:s:s:"+str(self.subCount)+" language="+c.language+W)
+                            print (G+" [V]"+O+"    -c:s:"+str(self.subCount-1)+" srt"+W)
+                            print (G+" [V]"+O+"    -metadata:s:s:"+str(self.subCount-1)+" language="+c.language+W)
                     else:
                         self.add_streamopt("-c:s:"+str(self.subCount)+" mov_text")
                         self.add_streamopt("-metadata:s:s:"+str(self.subCount)+" language="+c.language)
+                        self.subCount+=1
                         if self.PacConf.DEFAULT_VERBOSE:
                             print (G+" [V]"+O+"    -map 0:"+str(c.index)+W)
-                            print (G+" [V]"+O+"    -c:s:"+str(self.subCount)+" mov_text"+W)
-                            print (G+" [V]"+O+"    -metadata:s:s:"+str(self.subCount)+" language="+c.language+W)
+                            print (G+" [V]"+O+"    -c:s:"+str(self.subCount-1)+" mov_text"+W)
+                            print (G+" [V]"+O+"    -metadata:s:s:"+str(self.subCount-1)+" language="+c.language+W)
 
     def convert_subtitle_step1(self,cmds,timeout=10):
         """
@@ -1324,8 +1326,8 @@ class PacMedia:
         new_frames = outputf.frames
         diff = int(abs(pre_frames-new_frames))
 
-        #maxdiff
-        maxdiff = 10
+        #maxdiff in Frames
+        maxdiff = 50
 
         # Proceed...
         if self.PacConf.DEFAULT_DELETEFILE and diff <= maxdiff:
