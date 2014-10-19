@@ -18,7 +18,7 @@
 ################################
 
 # Version
-VERSION = 3.3;
+VERSION = 3.4;
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -1383,6 +1383,7 @@ if __name__ == '__main__':
     try:
         PacConf = PacConf()
         searchFiles(PacConf)
+        PacConf.TOCONVERT.sort(key=lambda x: x.name, reverse=False)
         print (GR+" [+]"+W+" ...found "+O+str(len(PacConf.TOCONVERT))+W+" files.")
         currenta = 1
         currentc = 1
