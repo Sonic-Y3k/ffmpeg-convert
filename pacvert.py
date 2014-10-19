@@ -18,7 +18,7 @@
 ################################
 
 # Version
-VERSION = 3.2;
+VERSION = 3.3;
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -704,7 +704,10 @@ class PacMedia:
 
         for c in self.streams:
             if c.type == "video":
-                self.frames = round(c.duration*c.video_fps)+1
+                if c.duration < 1:
+                    self.frames = round(self.format.duration*c.video_fps)+1
+                else:
+                    self.frames = round(c.duration*c.video_fps)+1
                 self.add_streammap("-map 0:"+str(c.index))
 
                 if crf < self.PacConf.DEFAULT_CRF:
@@ -752,7 +755,7 @@ class PacMedia:
             skip_secs=35*a
             cmd = [self.PacConf.DEFAULT_MPLAYER,self.path,"-ss",str(skip_secs),"-identify","-frames","20","-vo","md5sum","-ao","null","-nocache","-quiet", "-vf", "cropdetect=20:16" ]
             proc_mplayer = check_output(cmd, stderr=DN)
-            for c in re.sub(r'[^\x00-\x7F]+',' ',proc_mplayer.decode(stdout.encoding)).split('\n'):
+            for c in str(proc_mplayer.decode("ISO-8859-1")).split('\n'):
                 cout = c.split(' ')
                 if cout[0] == "[CROP]":
                     crop_row.append(cout[10].split("=")[1].split(")")[0].split(":")[0])
@@ -926,7 +929,7 @@ class PacMedia:
                     if newSub != "":
                         self.addFiles.append(newSub)
                         self.add_streammap("-map "+str(len(self.addFiles))+":0")
-                        self.add_streamopt("-c:s:"+str(self.subCount)+"mov_text")
+                        self.add_streamopt("-c:s:"+str(self.subCount)+" mov_text")
                         self.add_streamopt("-metadata:s:s:"+str(self.subCount)+" language="+c.language)
                         self.subCount+=1
                         if self.PacConf.DEFAULT_VERBOSE:
@@ -1148,7 +1151,10 @@ class PacMedia:
             Converts subtitle to srt
         """
         tempFileName=self.PacConf.TEMP+os.path.splitext(os.path.basename(self.path))[0]+"."+str(index)
-        cmd_mkvextract=[self.PacConf.DEFAULT_MKVEXTRACT,"tracks",self.path,str(index)+":"+tempFileName+".sup"]
+        if codec != "dvdsub":
+            cmd_mkvextract=[self.PacConf.DEFAULT_MKVEXTRACT,"tracks",self.path,str(index)+":"+tempFileName+".sup"]
+        else:
+            cmd_mkvextract=[self.PacConf.DEFAULT_MKVEXTRACT,"tracks",self.path,str(index)+":"+tempFileName+".sub"]
         cmd_bdsup2subpp=[self.PacConf.DEFAULT_BDSUP2SUBPP,"-o",tempFileName+".sub",tempFileName+".sup"]
         
         if os.path.isdir("/usr/share/tessdata"):
@@ -1174,23 +1180,24 @@ class PacMedia:
                 pbar.update(temp)
                 pval = temp
         pbar.finish()
+        
+        if codec != "dvdsub":
+            #Second Block, extract frames from subtitle
+            widgets = [GR+" [-]"+W+" extracting frames  \t",Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',ETA()]
+            pbar = ProgressBar(widgets=widgets, maxval=100.0)
+            pbar.start()
+            step2 = self.convert_subtitle_step2(cmd_bdsup2subpp)
+            pval = 0.0
+            for val in step2:
+                try:
+                    temp = float(int(val[0])/int(val[1]))*100
+                except TypeError:
+                    temp = pval
 
-        #Second Block, extract frames from subtitle
-        widgets = [GR+" [-]"+W+" extracting frames  \t",Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',ETA()]
-        pbar = ProgressBar(widgets=widgets, maxval=100.0)
-        pbar.start()
-        step2 = self.convert_subtitle_step2(cmd_bdsup2subpp)
-        pval = 0.0
-        for val in step2:
-            try:
-                temp = float(int(val[0])/int(val[1]))*100
-            except TypeError:
-                temp = pval
-
-            if temp > pval and temp <= 1:
-                pbar.update(temp)
-                pval = temp
-        pbar.finish()
+                if temp > pval and temp <= 1:
+                    pbar.update(temp)
+                    pval = temp
+            pbar.finish()
         
         #Third Block, ocr extracted frames
         widgets = [GR+" [-]"+W+" using ocr on frames\t",Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',ETA()]
@@ -1303,9 +1310,10 @@ class PacMedia:
         self.PacConf.DEFAULT_CROPPING = False
 
         #Analyze output
-        output = PacMedia(self.PacConf,self.PacConf.DEFAULT_OUTPUTDIR+"/"+self.name+"."+self.ext,self.name)
-        output.analyze()
-        output.analyze_video()
+        output = self.PacConf.DEFAULT_OUTPUTDIR+"/"+self.name+"."+self.ext
+        outputf = PacMedia(self.PacConf,output,self.name)
+        outputf.analyze()
+        outputf.analyze_video()
 
         # Restore verboseity and cropping
         self.PacConf.DEFAULT_VERBOSE = old_v
@@ -1313,22 +1321,25 @@ class PacMedia:
 
         # Calculate difference in both files
         pre_frames = self.frames
-        new_frames = output.frames
+        new_frames = outputf.frames
         diff = int(abs(pre_frames-new_frames))
 
+        #maxdiff
+        maxdiff = 10
+
         # Proceed...
-        if self.PacConf.DEFAULT_DELETEFILE and diff <= 10:
+        if self.PacConf.DEFAULT_DELETEFILE and diff <= maxdiff:
             if self.PacConf.DEFAULT_VERBOSE:
                 print (G+" [V]"+W+" passed sanity check - "+O+"deleting"+W+" file"+W)
             os.remove(self.path)
-        elif self.PacConf.DEFAULT_DELETEFILE and diff > 10:
-            print (R+" [!]"+W+" failed sanity check - keeping old & removing new file"+W)
+        elif self.PacConf.DEFAULT_DELETEFILE and diff > maxdiff:
+            print (R+" [!]"+W+" failed sanity check (max diff: "+str(maxdiff)+" | cur diff: "+str(diff)+") - keeping old & removing new file"+W)
             os.remove(output)
-        elif not self.PacConf.DEFAULT_DELETEFILE and diff <= 10:
+        elif not self.PacConf.DEFAULT_DELETEFILE and diff <= maxdiff:
             if self.PacConf.DEFAULT_VERBOSE:
                 print (G+" [V]"+W+" passed sanity check - "+O+"keeping"+W+" file"+W)
-        elif not self.PacConf.DEFAULT_VERBOSE and diff > 10:
-            print (R+" [!]"+W+" failed sanity check - removing "+O+"NEW"+W+" file"+W)
+        elif not self.PacConf.DEFAULT_VERBOSE and diff > maxdiff:
+            print (R+" [!]"+W+" failed sanity check (max diff: "+str(maxdiff)+" | cur diff: "+str(diff)+")  - removing "+O+"NEW"+W+" file"+W)
             os.remove(output)
 
         #except:
@@ -1373,19 +1384,30 @@ if __name__ == '__main__':
         PacConf = PacConf()
         searchFiles(PacConf)
         print (GR+" [+]"+W+" ...found "+O+str(len(PacConf.TOCONVERT))+W+" files.")
-    
-        current = 1
+        currenta = 1
+        currentc = 1
+        if not PacConf.DEFAULT_VERBOSE:
+            widgets = [GR+" [-]"+W+" analyze: "+PacConf.TOCONVERT[0].name[:10]+"... ("+str(currenta).zfill(3)+"/"+str(len(PacConf.TOCONVERT)).zfill(3)+")",' ',Percentage(),' ',Bar(marker='#',left='[',right=']'),' ', ETA()] 
+            pbar = ProgressBar(widgets=widgets,maxval=len(PacConf.TOCONVERT))
+            pbar.start()
+
         for i in PacConf.TOCONVERT:
             i.analyze()
             i.analyze_video()
             i.analyze_audio()
             i.analyze_subtitles()
+            if not PacConf.DEFAULT_VERBOSE:
+                widgets[0] = FormatLabel(GR+" [-]"+W+" analyze: "+i.name[:10]+"... ("+str(currenta).zfill(3)+"/"+str(len(PacConf.TOCONVERT)).zfill(3)+")")
+                pbar.update(currenta)
+            currenta += 1
+        if not PacConf.DEFAULT_VERBOSE:
+            pbar.finish()
 
         for i in PacConf.TOCONVERT:            
             conv = i.convert()
             frames = i.frames
-            widgets = [GR+" [-]"+W+" convert: "+i.name[:10]+"... ("+str(current).zfill(3)+"/"+str(len(PacConf.TOCONVERT)).zfill(3)+")",' ',Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()] 
-            pbar = ProgressBar(widgets=widgets,maxval=frames)
+            widgets = [GR+" [-]"+W+" convert: "+i.name[:10]+"... ("+str(currentc).zfill(3)+"/"+str(len(PacConf.TOCONVERT)).zfill(3)+")",' ',Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()] 
+            pbar = ProgressBar(widgets=widgets,maxval=i.frames)
             pbar.start()
             oltime = time.time()
             pval = 0
@@ -1394,16 +1416,15 @@ if __name__ == '__main__':
                     temp = int(val[0])
                 except TypeError:
                     temp = pval
-
                 widgets[6] = FormatLabel(str(val[1])+" FPS")
-                if temp <= frames:
+                if temp <= i.frames:
                     pbar.update(temp)
                     pval = temp
                 else:
                     pbar.update(pval)
             pbar.finish()
             i.check_sanity() 
-            current+=1
+            currentc+=1
     except KeyboardInterrupt: print(R+'\n (^C)'+O+' interrupted\n'+W)
     except EOFError: print (R+'\n (^D)'+O+' interrupted\n'+W)
 
