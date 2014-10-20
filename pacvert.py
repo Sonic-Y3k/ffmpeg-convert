@@ -18,7 +18,7 @@
 ################################
 
 # Version
-VERSION = 3.5;
+VERSION = 3.6;
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -1267,9 +1267,9 @@ class PacMedia:
             if not ret:
                 break
             
-            ret = ret.decode("UTF-8")
+            ret = ret.decode("ISO-8859-1")
             total_output += ret
-            buf += ret
+            buf += str(ret)
             if "\r" in buf:
                 line,buf = buf.split("\r", 1)
 
