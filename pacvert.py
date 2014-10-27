@@ -18,7 +18,7 @@
 ################################
 
 # Version
-VERSION = 3.6;
+VERSION = 3.7;
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -647,7 +647,8 @@ class PacMedia:
             use ffprobe to add all streams to this object.
         """
         if self.PacConf.DEFAULT_VERBOSE:
-           print (G+" [V]"+W+" adding streams from ffprobe."+W)
+           print (G+" [V]"+B+" creating new job configuration:"+W)
+           print (G+" [V]"+W+" * file: "+O+self.path+W)
 
         cmd = [self.PacConf.DEFAULT_FFPROBE,'-show_format','-show_streams',self.path]
         proc_ffprobe = Popen(cmd, shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
@@ -688,7 +689,7 @@ class PacMedia:
             for video stream
         """
         if self.PacConf.DEFAULT_VERBOSE:
-            print (G+" [V]  "+W+" checking for existing crf."+W)
+            print (G+" [V]"+W+" * video track:"+W)
 
         cmd = [self.PacConf.DEFAULT_MEDIAINFO,"--Output='Video;%Encoded_Library_Settings%'",self.path]
         proc_mediainfo = check_output(cmd, stderr=DN)
@@ -697,10 +698,7 @@ class PacMedia:
             if b.split('=')[0] == "crf":
                 crf = float(b.split('=')[1].replace(',','.'))
                 if self.PacConf.DEFAULT_VERBOSE:
-                    print (G+" [V]  "+W+" found crf in file: "+O+str(crf)+W)
-
-        if self.PacConf.DEFAULT_VERBOSE:
-            print (G+" [V]  "+W+" setting the new values:"+W)
+                    print (G+" [V]"+W+"   + found crf: "+O+str(crf)+W)
 
         for c in self.streams:
             if c.type == "video":
@@ -719,25 +717,25 @@ class PacMedia:
                     self.add_streamopt("-crf "+str(self.PacConf.DEFAULT_CRF))
                     self.add_streamopt("-metadata:s:v:0 language="+c.language)
                     if self.PacConf.DEFAULT_VERBOSE:
-                        print (G+" [V]"+W+"    "+O+"-map 0:"+str(c.index)+W)
-                        print (G+" [V]"+W+"    "+O+"-c:v:0 libx264"+W)
-                        print (G+" [V]"+W+"    "+O+"-profile:v "+self.PacConf.DEFAULT_X264PROFILE+W)
-                        print (G+" [V]"+W+"    "+O+"-level "+str(self.PacConf.DEFAULT_X264LEVEL)+W)
-                        print (G+" [V]"+W+"    "+O+"-preset "+self.PacConf.DEFAULT_X264PRESET+W)
-                        print (G+" [V]"+W+"    "+O+"-tune "+self.PacConf.DEFAULT_X264TUNE+W)
-                        print (G+" [V]"+W+"    "+O+"-crf "+str(self.PacConf.DEFAULT_CRF)+W)
-                        print (G+" [V]"+W+"    "+O+"-metadata:s:v:0 language="+c.language+W)
+                        print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
+                        print (G+" [V]"+W+"   + "+O+"-c:v:0 libx264"+W)
+                        print (G+" [V]"+W+"   + "+O+"-profile:v "+self.PacConf.DEFAULT_X264PROFILE+W)
+                        print (G+" [V]"+W+"   + "+O+"-level "+str(self.PacConf.DEFAULT_X264LEVEL)+W)
+                        print (G+" [V]"+W+"   + "+O+"-preset "+self.PacConf.DEFAULT_X264PRESET+W)
+                        print (G+" [V]"+W+"   + "+O+"-tune "+self.PacConf.DEFAULT_X264TUNE+W)
+                        print (G+" [V]"+W+"   + "+O+"-crf "+str(self.PacConf.DEFAULT_CRF)+W)
+                        print (G+" [V]"+W+"   + "+O+"-metadata:s:v:0 language="+c.language+W)
                         
                     if self.PacConf.DEFAULT_CROPPING:
                         crop=self.analyze_crop()
                         self.add_streamopt("-filter:v crop="+crop)
                         if self.PacConf.DEFAULT_VERBOSE:
-                            print (G+" [V]"+W+"    "+O+"-filter:v crop="+crop+W)
+                            print (G+" [V]"+W+"   + "+O+"-filter:v crop="+crop+W)
                 else:
                     self.add_streamopt("-c:v:0 copy -metadata:s:v:0 language="+c.language)
                     if self.PacConf.DEFAULT_VERBOSE:
-                        print (G+" [V]"+W+"    "+O+"-map 0:"+str(c.index)+W)
-                        print (G+" [V]"+W+"    "+O+"-c:v:0 copy -metadata:s:v:0 language="+c.language+W)
+                        print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
+                        print (G+" [V]"+W+"   + "+O+"-c:v:0 copy -metadata:s:v:0 language="+c.language+W)
 
     def analyze_crop(self):
         """
@@ -788,6 +786,8 @@ class PacMedia:
         """
         for c in self.streams:
             if c.type == "audio":
+                if self.PacConf.DEFAULT_VERBOSE:
+                    print (G+" [V]"+W+" * audio track #"+str(self.audCount+1)+":"+W)
                 if self.ext == "mkv" and \
                         (c.codec == "ac3" or c.codec == "dca" or c.codec == "truehd"):
                     self.add_streammap("-map 0:"+str(c.index))
@@ -795,9 +795,10 @@ class PacMedia:
                     self.add_streamopt("-metadata:s:a:"+str(self.audCount)+" language="+c.language)
                     
                     if self.PacConf.DEFAULT_VERBOSE:
-                        print (G+" [V]"+O+"    -map 0:"+str(c.index)+W)
-                        print (G+" [V]"+O+"    -c:a:"+str(self.audCount)+" copy"+W)
-                        print (G+" [V]"+O+"    -metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
+
+                        print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
+                        print (G+" [V]"+W+"   + "+O+"-c:a:"+str(self.audCount)+" copy"+W)
+                        print (G+" [V]"+W+"   + "+O+"-metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
                     self.audCount+=1
                     
                 elif self.ext == "mkv" and \
@@ -809,11 +810,11 @@ class PacMedia:
                     self.add_streamopt("-metadata:s:a:"+str(self.audCount)+" language="+c.language)
                     
                     if self.PacConf.DEFAULT_VERBOSE:
-                        print (G+" [V]"+O+"    -map 0:"+str(c.index)+W)
-                        print (G+" [V]"+O+"    -c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB+W)
-                        print (G+" [V]"+O+"    -b:a:"+str(self.audCount)+" 640k"+W)
-                        print (G+" [V]"+O+"    -ac:"+str(self.audCount)+" "+str(max(2,c.audio_channels))+W)
-                        print (G+" [V]"+O+"    -metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
+                        print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
+                        print (G+" [V]"+W+"   + "+O+"-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB+W)
+                        print (G+" [V]"+W+"   + "+O+"-b:a:"+str(self.audCount)+" 640k"+W)
+                        print (G+" [V]"+W+"   + "+O+"-ac:"+str(self.audCount)+" "+str(max(2,c.audio_channels))+W)
+                        print (G+" [V]"+W+"   + "+O+"-metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
                     self.audCount+=1
                 
                 elif self.ext == "m4v" and (c.codec == "ac3" or c.codec == "aac"):
@@ -829,45 +830,49 @@ class PacMedia:
                         self.add_streamopt("-ac:"+str(self.audCount+1)+" 2")
                         self.add_streamopt("-metadata:s:a:"+str(self.audCount)+" language="+c.language)
                         if self.PacConf.DEFAULT_VERBOSE:
-                            print (G+" [V]"+O+"    -map 0:"+str(c.index)+" -map 0:"+str(c.index)+W)
-                            print (G+" [V]"+O+"    -c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AACLIB+W)
-                            print (G+" [V]"+O+"    -b:a:"+str(self.audCount)+" 320k"+W)
-                            print (G+" [V]"+O+"    -ac:"+str(self.audCount+1)+" 2"+W)
-                            print (G+" [V]"+O+"    -metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
+                            print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
+                            print (G+" [V]"+W+"   + "+O+"-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AACLIB+W)
+                            print (G+" [V]"+W+"   + "+O+"-b:a:"+str(self.audCount)+" 320k"+W)
+                            print (G+" [V]"+W+"   + "+O+"-ac:"+str(self.audCount+1)+" 2"+W)
+                            print (G+" [V]"+W+"   + "+O+"-metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
                         self.audCount+=1
                         self.add_streamopt("-c:a:"+str(self.audCount)+" copy")
                         self.add_streamopt("-metadata:s:a:"+str(self.audCount)+" language="+c.language)
                         if self.PacConf.DEFAULT_VERBOSE:
-                            print (G+" [V]"+O+"    -c:a:"+str(self.audCount)+" copy"+W)
-                            print (G+" [V]"+O+"    -metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
+                            print (G+" [V]"+W+" * audio track #"+str(self.audCount+1)+":"+W)
+                            print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
+                            print (G+" [V]"+W+"   + "+O+"-c:a:"+str(self.audCount)+" copy"+W)
+                            print (G+" [V]"+W+"   + "+O+"-metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
                         self.audCount+=1
                     elif doubleLang == 0 and c.codec == "aac":
                         self.add_streammap("-map 0:"+str(c.index)+" -map 0:"+str(c.index))
                         self.add_streamopt("-c:a:"+str(self.audCount)+" copy")
                         self.add_streamopt("-metadata:s:a:"+str(self.audCount)+" language="+c.language)
                         if self.PacConf.DEFAULT_VERBOSE:
-                            print (G+" [V]"+O+"    -map 0:"+str(c.index)+" -map 0:"+str(c.index)+W)
-                            print (G+" [V]"+O+"    -c:a:"+str(self.audCount)+" copy"+W)
-                            print (G+" [V]"+O+"    -metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
+                            print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
+                            print (G+" [V]"+W+"   + "+O+"-c:a:"+str(self.audCount)+" copy"+W)
+                            print (G+" [V]"+W+"   + "+O+"-metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
                         self.audCount+=1
                         self.add_streamopt("-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB)
                         self.add_streamopt("-b:a:"+str(self.audCount)+" 640k")
                         self.add_streamopt("-ac:"+str(self.audCount+1)+" "+str(max(2,c.audio_channels)))
                         self.add_streamopt("-metadata:s:a:"+str(self.audCount)+" language="+c.language)
                         if self.PacConf.DEFAULT_VERBOSE:
-                            print (G+" [V]"+O+"    -c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB+W)
-                            print (G+" [V]"+O+"    -b:a:"+str(self.audCount)+" 640k"+W)
-                            print (G+" [V]"+O+"    -ac:"+str(self.audCount+1)+" "+str(max(2,c.audio_channels))+W)
-                            print (G+" [V]"+O+"    -metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
+                            print (G+" [V]"+W+" * audio track #"+str(self.audCount+1)+":"+W)
+                            print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
+                            print (G+" [V]"+W+"   + "+O+"-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB+W)
+                            print (G+" [V]"+W+"   + "+O+"-b:a:"+str(self.audCount)+" 640k"+W)
+                            print (G+" [V]"+W+"   + "+O+"-ac:"+str(self.audCount+1)+" "+str(max(2,c.audio_channels))+W)
+                            print (G+" [V]"+W+"   + "+O+"-metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
                         self.audCount+=1
                     else:
                         self.add_streammap("-map 0:"+str(c.index))
                         self.add_streamopt("-c:a:"+str(self.audCount)+" copy")
                         self.add_streamopt("-metadata:s:a:"+str(self.audCount)+" language="+c.language)
                         if self.PacConf.DEFAULT_VERBOSE:
-                            print (G+" [V]"+O+"    -map 0:"+str(c.index)+W)
-                            print (G+" [V]"+O+"    -c:a:"+str(self.audCount)+" copy"+W)
-                            print (G+" [V]"+O+"    -metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
+                            print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
+                            print (G+" [V]"+W+"   + "+O+"-c:a:"+str(self.audCount)+" copy"+W)
+                            print (G+" [V]"+W+"   + "+O+"-metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
                         self.audCount+=1
                 else:
                     self.add_streammap("-map 0:"+str(c.index)+" -map 0:"+str(c.index))
@@ -876,21 +881,21 @@ class PacMedia:
                     self.add_streamopt("-ac:"+str(self.audCount+1)+" 2")
                     self.add_streamopt("-metadata:s:a:"+str(self.audCount)+" language="+c.language)
                     if self.PacConf.DEFAULT_VERBOSE:
-                        print (G+" [V]"+O+"    -map 0:"+str(c.index)+" -map 0:"+str(c.index)+W)
-                        print (G+" [V]"+O+"    -c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AACLIB+W)
-                        print (G+" [V]"+O+"    -b:a:"+str(self.audCount)+" 320k"+W)
-                        print (G+" [V]"+O+"    -ac:"+str(self.audCount+1)+" 2"+W)
-                        print (G+" [V]"+O+"    -metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
+                        print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+" -map 0:"+str(c.index)+W)
+                        print (G+" [V]"+W+"   + "+O+"-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AACLIB+W)
+                        print (G+" [V]"+W+"   + "+O+"-b:a:"+str(self.audCount)+" 320k"+W)
+                        print (G+" [V]"+W+"   + "+O+"-ac:"+str(self.audCount+1)+" 2"+W)
+                        print (G+" [V]"+W+"   + "+O+"-metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
                     self.audCount+=1
                     self.add_streamopt("-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB)
                     self.add_streamopt("-b:a:"+str(self.audCount)+" 640k")
                     self.add_streamopt("-ac:"+str(self.audCount+1)+" "+str(max(2,c.audio_channels)))
                     self.add_streamopt("-metadata:s:a:"+str(self.audCount)+" language="+c.language)
                     if self.PacConf.DEFAULT_VERBOSE:
-                        print (G+" [V]"+O+"    -c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB+W)
-                        print (G+" [V]"+O+"    -b:a:"+str(self.audCount)+" 640k"+W)
-                        print (G+" [V]"+O+"    -ac:"+str(self.audCount+1)+" "+str(max(2,c.audio_channels))+W)
-                        print (G+" [V]"+O+" -metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
+                        print (G+" [V]"+W+"   + "+O+"-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB+W)
+                        print (G+" [V]"+W+"   + "+O+"-b:a:"+str(self.audCount)+" 640k"+W)
+                        print (G+" [V]"+W+"   + "+O+"-ac:"+str(self.audCount+1)+" "+str(max(2,c.audio_channels))+W)
+                        print (G+" [V]"+W+"   + "+O+"-metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
                     self.audCount+=1
 
     def analyze_subtitles(self):
@@ -900,16 +905,21 @@ class PacMedia:
         """
         for c in self.streams:
             if c.type == "subtitle":
-                if (self.ext == "mkv" and (c.codec == "ass" or c.codec == "srt" or \
-                        c.codec == "ssa")) or (self.ext == "m4v" and c.codec == "mov_text"):
+                if self.PacConf.DEFAULT_VERBOSE:
+                    print (G+" [V]"+W+" * subtitle track #"+str(self.subCount+1)+":"+W)
+                if (self.ext == "mkv" and (c.codec == "ass" or c.codec == "srt" or c.codec == "ssa")) or (self.ext == "m4v" and c.codec == "mov_text"):
                     self.add_streammap("-map 0:"+str(c.index))
                     self.add_streamopt("-c:s:"+str(self.subCount)+" copy")
                     self.add_streamopt("-metadata:s:s:"+str(self.subCount)+" language="+c.language)
                     self.subCount+=1
-                elif self.ext == "mkv" and \
-                        (c.codec == "pgssub" or c.codec == "dvbsub"):
+                elif (self.ext == "mkv" and (c.codec == "pgssub" or c.codec == "dvdsub")):
                     #Convert to srt
-                    print (GR+" [-]"+W+" found "+O+"subtitle"+W+" (file: "+self.name+", index: "+str(c.index)+", lang: "+c.language+") that needs to be "+O+"converted"+W)
+                    if self.PacConf.DEFAULT_VERBOSE:
+                        print (G+" [V]"+W+"   + "+O+c.codec+" found"+W+":")
+                        print (G+" [V]"+W+"     + file: "+O+self.name+W)
+                        print (G+" [V]"+W+"     + index: "+O+str(c.index)+W)
+                        print (G+" [V]"+W+"     + language: "+O+c.language+W)
+                    
                     newSub=self.convert_subtitle(c.index,c.language,c.codec)
                     if newSub != "":
                         self.addFiles.append(newSub)
@@ -918,13 +928,17 @@ class PacMedia:
                         self.add_streamopt("-metadata:s:s:"+str(self.subCount)+" language="+c.language)
                         self.subCount+=1
                         if self.PacConf.DEFAULT_VERBOSE:
-                            print (G+" [V]"+O+"    -map "+str(len(self.addFiles))+":0"+W)
-                            print (G+" [V]"+O+"    -c:s:"+str(self.subCount-1)+" copy"+W)
-                            print (G+" [V]"+O+"    -metadata:s:s:"+str(self.subCount-1)+" language="+c.language+W)
-                elif self.ext == "m4v" and \
-                        (c.codec == "pgssub" or c.codec == "dvdsub"):
+                            print (G+" [V]"+W+"     + "+O+"-map "+str(len(self.addFiles))+":0"+W)
+                            print (G+" [V]"+W+"     + "+O+"-c:s:"+str(self.subCount-1)+" copy"+W)
+                            print (G+" [V]"+W+"     + "+O+"-metadata:s:s:"+str(self.subCount-1)+" language="+c.language+W)
+                elif (self.ext == "m4v" and (c.codec == "pgssub" or c.codec == "dvdsub")):
                     #Convert to srt and then to mov_text
-                    print (GR+" [-]"+W+" found "+O+"subtitle"+W+" (file: "+self.name+", index: "+str(c.index)+", lang: "+c.language+") that needs to be "+O+"converted"+W)
+                    if self.PacConf.DEFAULT_VERBOSE:
+                        print (G+" [V]"+W+"   + "+O+c.codec+" found"+W+":")                                                                                               
+                        print (G+" [V]"+W+"     + file: "+O+self.name+W)
+                        print (G+" [V]"+W+"     + index: "+O+str(c.index)+W)
+                        print (G+" [V]"+W+"     + language: "+O+c.language+W)
+
                     newSub=self.convert_subtitle(c.index,c.language,c.codec)
                     if newSub != "":
                         self.addFiles.append(newSub)
@@ -933,9 +947,9 @@ class PacMedia:
                         self.add_streamopt("-metadata:s:s:"+str(self.subCount)+" language="+c.language)
                         self.subCount+=1
                         if self.PacConf.DEFAULT_VERBOSE:
-                            print (G+" [V]"+O+"    -map "+str(len(self.addFiles))+":0"+W)
-                            print (G+" [V]"+O+"    -c:s:"+str(self.subCount-1)+" copy"+W)
-                            print (G+" [V]"+O+"    -metadata:s:s:"+str(self.subCount-1)+" language="+c.language+W)
+                            print (G+" [V]"+W+"     + "+O+"-map "+str(len(self.addFiles))+":0"+W)
+                            print (G+" [V]"+W+"     + "+O+"-c:s:"+str(self.subCount-1)+" copy"+W)
+                            print (G+" [V]"+W+"     + "+O+"-metadata:s:s:"+str(self.subCount-1)+" language="+c.language+W)
                 else:
                     self.add_streammap("-map 0:"+str(c.index))
                     if self.ext == "mkv":
@@ -943,17 +957,17 @@ class PacMedia:
                         self.add_streamopt("-metadata:s:s:"+str(self.subCount)+" language="+c.language)
                         self.subCount+=1
                         if self.PacConf.DEFAULT_VERBOSE:
-                            print (G+" [V]"+O+"    -map 0:"+str(c.index)+W)
-                            print (G+" [V]"+O+"    -c:s:"+str(self.subCount-1)+" srt"+W)
-                            print (G+" [V]"+O+"    -metadata:s:s:"+str(self.subCount-1)+" language="+c.language+W)
+                            print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
+                            print (G+" [V]"+W+"   + "+O+"-c:s:"+str(self.subCount-1)+" srt"+W)
+                            print (G+" [V]"+W+"   + "+O+"-metadata:s:s:"+str(self.subCount-1)+" language="+c.language+W)
                     else:
                         self.add_streamopt("-c:s:"+str(self.subCount)+" mov_text")
                         self.add_streamopt("-metadata:s:s:"+str(self.subCount)+" language="+c.language)
                         self.subCount+=1
                         if self.PacConf.DEFAULT_VERBOSE:
-                            print (G+" [V]"+O+"    -map 0:"+str(c.index)+W)
-                            print (G+" [V]"+O+"    -c:s:"+str(self.subCount-1)+" mov_text"+W)
-                            print (G+" [V]"+O+"    -metadata:s:s:"+str(self.subCount-1)+" language="+c.language+W)
+                            print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
+                            print (G+" [V]"+W+"   + "+O+"-c:s:"+str(self.subCount-1)+" mov_text"+W)
+                            print (G+" [V]"+W+"   + "+O+"-metadata:s:s:"+str(self.subCount-1)+" language="+c.language+W)
 
     def convert_subtitle_step1(self,cmds,timeout=10):
         """
@@ -1167,9 +1181,10 @@ class PacMedia:
         cmd_vobsub2srt=[self.PacConf.DEFAULT_VOBSUB2SRT,"--tesseract-lang",lang,"--tesseract-data",tessdata,tempFileName,"--verbose"]
     
         #First Block, let's extract the subtitle from file.
-        widgets = [GR+" [-]"+W+" extracting subtitle\t",Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',ETA()]
-        pbar = ProgressBar(widgets=widgets, maxval=100)
-        pbar.start()
+        if self.PacConf.DEFAULT_VERBOSE:
+            widgets = [G+" [V]"+W+"     + extracting subtitle:\t",Percentage(),' (',ETA(),')']
+            pbar = ProgressBar(widgets=widgets, maxval=100)
+            pbar.start()
         step1 = self.convert_subtitle_step1(cmd_mkvextract)
         pval = 0
         for val in step1:
@@ -1179,15 +1194,18 @@ class PacMedia:
                 temp = pval
 
             if temp > pval and temp < 101:
-                pbar.update(temp)
+                if self.PacConf.DEFAULT_VERBOSE:
+                    pbar.update(temp)
                 pval = temp
-        pbar.finish()
+        if self.PacConf.DEFAULT_VERBOSE:
+            pbar.finish()
         
         if codec != "dvdsub":
             #Second Block, extract frames from subtitle
-            widgets = [GR+" [-]"+W+" extracting frames  \t",Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',ETA()]
-            pbar = ProgressBar(widgets=widgets, maxval=100.0)
-            pbar.start()
+            if self.PacConf.DEFAULT_VERBOSE:
+                widgets = [G+" [V]"+W+"     + extracting frames:\t",Percentage(),' (',ETA(),')']
+                pbar = ProgressBar(widgets=widgets, maxval=100.0)
+                pbar.start()
             step2 = self.convert_subtitle_step2(cmd_bdsup2subpp)
             pval = 0.0
             for val in step2:
@@ -1197,19 +1215,23 @@ class PacMedia:
                     temp = pval
 
                 if temp > pval and temp <= 1:
-                    pbar.update(temp)
+                    if self.PacConf.DEFAULT_VERBOSE:
+                        pbar.update(temp)
                     pval = temp
-            pbar.finish()
+            if self.PacConf.DEFAULT_VERBOSE:
+                pbar.finish()
         
         #Third Block, ocr extracted frames
-        widgets = [GR+" [-]"+W+" using ocr on frames\t",Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',ETA()]
         length=0
         ins = open(tempFileName+'.idx', "r")
         for line in ins:
             if "timestamp" in line:
-                 length+=1
-        pbar = ProgressBar(widgets=widgets, maxval=length)
-        pbar.start()
+                length+=1
+
+        if self.PacConf.DEFAULT_VERBOSE:
+            widgets = [G+" [V]"+W+"     + ocr on frames:\t",Percentage(),' (',ETA(),')']
+            pbar = ProgressBar(widgets=widgets, maxval=length)
+            pbar.start()
         step3 = self.convert_subtitle_step3(cmd_vobsub2srt)
         pval = 0
         for val in step3:
@@ -1219,9 +1241,11 @@ class PacMedia:
                 temp = pval
 
             if temp > pval and temp <= length:
-                pbar.update(temp)
+                if self.PacConf.DEFAULT_VERBOSE:
+                    pbar.update(temp)
                 pval = temp
-        pbar.finish()
+        if self.PacConf.DEFAULT_VERBOSE:
+            pbar.finish()
 
         if os.path.isfile(tempFileName+".srt"):
             return tempFileName+".srt"
@@ -1243,13 +1267,13 @@ class PacMedia:
         if timeout:
             def on_sigalrm(*_):
                 signal.signal(signal.SIGALRM,signal.SIG_DFL)
-                raise Exception("timed out while waiting for ffmpeg")
+                raise ToolConvertError("Timed out while waiting for ffmpeg")
             signal.signal(signal.SIGALRM,on_sigalrm)
 
         try:
             p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
         except OSError:
-            raise Exception("Error while calling ffmpeg binary")
+            raise ToolConvertError("Error while calling ffmpeg binary",)
         
         yielded = False
         buf = ""
@@ -1390,7 +1414,9 @@ if __name__ == '__main__':
         currenta = 1
         currentc = 1
         if not PacConf.DEFAULT_VERBOSE:
-            widgets = [GR+" [-]"+W+" analyze: "+PacConf.TOCONVERT[0].name[:10]+"... ("+str(currenta).zfill(3)+"/"+str(len(PacConf.TOCONVERT)).zfill(3)+")",' ',Percentage(),' ',Bar(marker='#',left='[',right=']'),' ', ETA()] 
+            short_name = PacConf.TOCONVERT[0].name[:10]
+            current_zero = str(currenta).zfill(len(str(len(PacConf.TOCONVERT))))
+            widgets = [GR+" [-]"+W+" analyze: "+short_name+"... ("+current_zero+"/"+str(len(PacConf.TOCONVERT))+")",' ',Percentage(),' ',Bar(marker='#',left='[',right=']'),' ', ETA()] 
             pbar = ProgressBar(widgets=widgets,maxval=len(PacConf.TOCONVERT))
             pbar.start()
 
@@ -1400,16 +1426,24 @@ if __name__ == '__main__':
             i.analyze_audio()
             i.analyze_subtitles()
             if not PacConf.DEFAULT_VERBOSE:
-                widgets[0] = FormatLabel(GR+" [-]"+W+" analyze: "+i.name[:10]+"... ("+str(currenta).zfill(3)+"/"+str(len(PacConf.TOCONVERT)).zfill(3)+")")
+                current_zero = str(currenta).zfill(len(str(len(PacConf.TOCONVERT))))
+                widgets[0] = FormatLabel(GR+" [-]"+W+" analyze: "+i.name[:10]+"... ("+current_zero+"/"+str(len(PacConf.TOCONVERT))+")")
                 pbar.update(currenta)
             currenta += 1
         if not PacConf.DEFAULT_VERBOSE:
             pbar.finish()
 
         for i in PacConf.TOCONVERT:            
-            conv = i.convert()
+            try:
+                conv = i.convert()
+            except ToolConvertError:
+                print(R+" [!] Received: "+O+ToolConvertError.message+W)
+                print(R+" [!] Retrying: "+O+i.name+W)
+                conv = i.convert()
+
             frames = i.frames
-            widgets = [GR+" [-]"+W+" convert: "+i.name[:10]+"... ("+str(currentc).zfill(3)+"/"+str(len(PacConf.TOCONVERT)).zfill(3)+")",' ',Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()] 
+            current_zero = str(currentc).zfill(len(str(len(PacConf.TOCONVERT))))
+            widgets = [GR+" [-]"+W+" convert: "+i.name[:10]+"... ("+current_zero+"/"+str(len(PacConf.TOCONVERT))+")",' ',Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()] 
             pbar = ProgressBar(widgets=widgets,maxval=i.frames)
             pbar.start()
             oltime = time.time()
