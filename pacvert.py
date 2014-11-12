@@ -18,7 +18,7 @@
 ################################
 
 # Version
-VERSION = 3.7;
+VERSION = 3.8;
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -1206,18 +1206,27 @@ class PacMedia:
                 widgets = [G+" [V]"+W+"     + extracting frames:\t",Percentage(),' (',ETA(),')']
                 pbar = ProgressBar(widgets=widgets, maxval=100.0)
                 pbar.start()
-            step2 = self.convert_subtitle_step2(cmd_bdsup2subpp)
-            pval = 0.0
-            for val in step2:
-                try:
-                    temp = float(int(val[0])/int(val[1]))*100
-                except TypeError:
-                    temp = pval
 
-                if temp > pval and temp <= 1:
-                    if self.PacConf.DEFAULT_VERBOSE:
-                        pbar.update(temp)
-                    pval = temp
+            try:
+                step2 = self.convert_subtitle_step2(cmd_bdsup2subpp)
+                pval = 0.0
+                for val in step2:
+                    try:
+                        temp = float(int(val[0])/int(val[1]))*100
+                    except TypeError:
+                        temp = pval
+
+                    if temp > pval and temp <= 1:
+                        if self.PacConf.DEFAULT_VERBOSE:
+                            pbar.update(temp)
+                        pval = temp
+            except ToolConvertError as e:            
+                if self.PacConf.DEFAULT_VERBOSE:
+                    pbar.finish()
+                print(R+" [!]"+W+"     + error: "+O+e.details+W)
+                print(R+" [!]"+W+"     + "+O+"ignoring subtitle."+W)
+                return ""
+
             if self.PacConf.DEFAULT_VERBOSE:
                 pbar.finish()
         
