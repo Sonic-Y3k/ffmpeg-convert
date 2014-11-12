@@ -18,7 +18,7 @@
 ################################
 
 # Version
-VERSION = 3.8;
+VERSION = 3.9;
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -806,14 +806,14 @@ class PacMedia:
                     self.add_streammap("-map 0:"+str(c.index))
                     self.add_streamopt("-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB)
                     self.add_streamopt(" -b:a:"+str(self.audCount)+" 640k")
-                    self.add_streamopt("-ac:"+str(self.audCount)+" "+str(max(2,c.audio_channels)))
+                    self.add_streamopt("-ac:"+str(self.audCount)+" "+str(min(max(2,c.audio_channels),6)))
                     self.add_streamopt("-metadata:s:a:"+str(self.audCount)+" language="+c.language)
                     
                     if self.PacConf.DEFAULT_VERBOSE:
                         print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
                         print (G+" [V]"+W+"   + "+O+"-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB+W)
                         print (G+" [V]"+W+"   + "+O+"-b:a:"+str(self.audCount)+" 640k"+W)
-                        print (G+" [V]"+W+"   + "+O+"-ac:"+str(self.audCount)+" "+str(max(2,c.audio_channels))+W)
+                        print (G+" [V]"+W+"   + "+O+"-ac:"+str(self.audCount)+" "+str(min(max(2,c.audio_channels),6))+W)
                         print (G+" [V]"+W+"   + "+O+"-metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
                     self.audCount+=1
                 
@@ -855,14 +855,14 @@ class PacMedia:
                         self.audCount+=1
                         self.add_streamopt("-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB)
                         self.add_streamopt("-b:a:"+str(self.audCount)+" 640k")
-                        self.add_streamopt("-ac:"+str(self.audCount+1)+" "+str(max(2,c.audio_channels)))
+                        self.add_streamopt("-ac:"+str(self.audCount+1)+" "+str(min(max(2,c.audio_channels),6)))
                         self.add_streamopt("-metadata:s:a:"+str(self.audCount)+" language="+c.language)
                         if self.PacConf.DEFAULT_VERBOSE:
                             print (G+" [V]"+W+" * audio track #"+str(self.audCount+1)+":"+W)
                             print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
                             print (G+" [V]"+W+"   + "+O+"-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB+W)
                             print (G+" [V]"+W+"   + "+O+"-b:a:"+str(self.audCount)+" 640k"+W)
-                            print (G+" [V]"+W+"   + "+O+"-ac:"+str(self.audCount+1)+" "+str(max(2,c.audio_channels))+W)
+                            print (G+" [V]"+W+"   + "+O+"-ac:"+str(self.audCount+1)+" "+str(min(max(2,c.audio_channels),6))+W)
                             print (G+" [V]"+W+"   + "+O+"-metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
                         self.audCount+=1
                     else:
@@ -875,26 +875,29 @@ class PacMedia:
                             print (G+" [V]"+W+"   + "+O+"-metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
                         self.audCount+=1
                 else:
-                    self.add_streammap("-map 0:"+str(c.index)+" -map 0:"+str(c.index))
+                    self.add_streammap("-map 0:"+str(c.index))
                     self.add_streamopt("-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AACLIB)
                     self.add_streamopt("-b:a:"+str(self.audCount)+" 320k")
                     self.add_streamopt("-ac:"+str(self.audCount+1)+" 2")
                     self.add_streamopt("-metadata:s:a:"+str(self.audCount)+" language="+c.language)
                     if self.PacConf.DEFAULT_VERBOSE:
-                        print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+" -map 0:"+str(c.index)+W)
+                        print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
                         print (G+" [V]"+W+"   + "+O+"-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AACLIB+W)
                         print (G+" [V]"+W+"   + "+O+"-b:a:"+str(self.audCount)+" 320k"+W)
                         print (G+" [V]"+W+"   + "+O+"-ac:"+str(self.audCount+1)+" 2"+W)
                         print (G+" [V]"+W+"   + "+O+"-metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
                     self.audCount+=1
+                    self.add_streammap("-map 0:"+str(c.index))
                     self.add_streamopt("-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB)
                     self.add_streamopt("-b:a:"+str(self.audCount)+" 640k")
-                    self.add_streamopt("-ac:"+str(self.audCount+1)+" "+str(max(2,c.audio_channels)))
+                    self.add_streamopt("-ac:"+str(self.audCount+1)+" "+str(min(max(2,c.audio_channels),6)))
                     self.add_streamopt("-metadata:s:a:"+str(self.audCount)+" language="+c.language)
                     if self.PacConf.DEFAULT_VERBOSE:
+                        print (G+" [V]"+W+" * audio track #"+str(self.audCount+1)+":"+W)
+                        print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
                         print (G+" [V]"+W+"   + "+O+"-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB+W)
                         print (G+" [V]"+W+"   + "+O+"-b:a:"+str(self.audCount)+" 640k"+W)
-                        print (G+" [V]"+W+"   + "+O+"-ac:"+str(self.audCount+1)+" "+str(max(2,c.audio_channels))+W)
+                        print (G+" [V]"+W+"   + "+O+"-ac:"+str(self.audCount+1)+" "+str(min(max(2,c.audio_channels),6))+W)
                         print (G+" [V]"+W+"   + "+O+"-metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
                     self.audCount+=1
 
@@ -1223,8 +1226,8 @@ class PacMedia:
             except ToolConvertError as e:            
                 if self.PacConf.DEFAULT_VERBOSE:
                     pbar.finish()
-                print(R+" [!]"+W+"     + error: "+O+e.details+W)
-                print(R+" [!]"+W+"     + "+O+"ignoring subtitle."+W)
+                    print(R+" [!]"+W+"     + error: "+O+e.details+W)
+                    print(R+" [!]"+W+"     + "+O+"ignoring subtitle."+W)
                 return ""
 
             if self.PacConf.DEFAULT_VERBOSE:
