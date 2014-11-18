@@ -18,7 +18,7 @@
 ################################
 
 # Version
-VERSION = 3.9;
+VERSION = 3.10;
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -1160,7 +1160,8 @@ class PacMedia:
             if line.startswith("Received signal"):
                 raise ToolConvertError(line.split(':')[0], cmd, total_output,pid=p.pid)
             if not yielded:
-                 raise ToolConvertError('Unknown vobsub2srt error', cmd,total_output, line, pid=p.pid)
+                if not "Wrote Subtitles to" in total_output:
+                    raise ToolConvertError('Unknown vobsub2srt error', cmd,total_output, line, pid=p.pid)
         if p.returncode != 0:
             raise ToolConvertError('Exited with code %d' % p.returncode,cmd,total_output, pid=p.pid)
 
@@ -1279,13 +1280,13 @@ class PacMedia:
         if timeout:
             def on_sigalrm(*_):
                 signal.signal(signal.SIGALRM,signal.SIG_DFL)
-                raise ToolConvertError("Timed out while waiting for ffmpeg")
+                raise ToolConvertError("Timed out while waiting for ffmpeg","","")
             signal.signal(signal.SIGALRM,on_sigalrm)
 
         try:
             p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
         except OSError:
-            raise ToolConvertError("Error while calling ffmpeg binary",)
+            raise ToolConvertError("Error while calling ffmpeg binary","","")
         
         yielded = False
         buf = ""
@@ -1447,11 +1448,11 @@ if __name__ == '__main__':
 
         for i in PacConf.TOCONVERT:            
             try:
-                conv = i.convert()
+                conv = i.convert(30)
             except ToolConvertError:
                 print(R+" [!] Received: "+O+ToolConvertError.message+W)
                 print(R+" [!] Retrying: "+O+i.name+W)
-                conv = i.convert()
+                continue
 
             frames = i.frames
             current_zero = str(currentc).zfill(len(str(len(PacConf.TOCONVERT))))
