@@ -18,7 +18,8 @@
 ################################
 
 # Version
-VERSION = 3.10;
+VERSION = 3.11;
+DATE = "22.11.2014";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -343,6 +344,9 @@ class PacConf:
             if options.verbose:
                 print (GR+' [+]'+W+' enabling verbose mode'+W+'.'+W)
                 self.DEFAULT_VERBOSE=True
+            if options.version:
+                print (GR+' [+]'+W+' Version: '+str(VERSION)+' ('+DATE+')'+W)
+                self.exit_gracefully(0)
             if options.nice:
                 print (GR+' [+]'+W+' changing nice to: \"'+G+options.nice+W+'\".'+W)
                 self.DEFAULT_NICE = options.nice
@@ -363,6 +367,7 @@ class PacConf:
         command_group.add_argument('--outdir', help='Change outdir to <directory>.', action='store', dest='directory')
         command_group.add_argument('--rmfile', help='Remove original video.', action='store_true', dest='rmfile')
         command_group.add_argument('--verbose', help='Enable verbose mode.', action='store_true', dest='verbose')
+        command_group.add_argument('--version', help='Display version number.',action='store_true',dest='version')
         command_group.add_argument('--x264level', help='Change x264-level',action='store', type=float, dest='x264level',choices=['1','1b','1.1','1.2','1.3','2','2.1','2.2','3','3.1','3.2','4','4.1','4.2','5', '5.1'])
         command_group.add_argument('--x264preset', help='Change x264-preset',action='store', dest='x264preset',choices=['ultrafast','superfast','veryfast','faster','fast','medium','slow','slower','veryslow','placebo'])
         command_group.add_argument('--x264profile', help='Change x264-profile',action='store', dest='x264profile',choices=['baseline','main','high','high10','high422','high444'])
@@ -632,6 +637,7 @@ class PacMedia:
         for i in self.addFiles:
             cmd.append("-i")
             cmd.append(i)
+ 
         cmd.extend(self.streammap.split(" "))
         cmd.extend(self.streamopt.split(" "))
 
