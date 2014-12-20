@@ -18,8 +18,8 @@
 ################################
 
 # Version
-VERSION = 3.11;
-DATE = "22.11.2014";
+VERSION = 3.12;
+DATE = "20.12.2014";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -920,6 +920,13 @@ class PacMedia:
                     self.add_streammap("-map 0:"+str(c.index))
                     self.add_streamopt("-c:s:"+str(self.subCount)+" copy")
                     self.add_streamopt("-metadata:s:s:"+str(self.subCount)+" language="+c.language)
+                    
+                    if self.PacConf.DEFAULT_VERBOSE:
+                         print (G+" [V]"+W+"   + "+O+c.codec+" found"+W+":")
+                         print (G+" [V]"+W+"     + file: "+O+self.name+W)
+                         print (G+" [V]"+W+"     + index: "+O+str(c.index)+W)
+                         print (G+" [V]"+W+"     + language: "+O+c.language+W)
+                    
                     self.subCount+=1
                 elif (self.ext == "mkv" and (c.codec == "pgssub" or c.codec == "dvdsub")):
                     #Convert to srt
