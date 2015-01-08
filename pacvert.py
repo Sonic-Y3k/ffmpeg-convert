@@ -18,7 +18,7 @@
 ################################
 
 # Version
-VERSION = 3.12;
+VERSION = 3.13;
 DATE = "20.12.2014";
 
 # Console colors
@@ -1240,7 +1240,7 @@ class PacMedia:
             except ToolConvertError as e:            
                 if self.PacConf.DEFAULT_VERBOSE:
                     pbar.finish()
-                    print(R+" [!]"+W+"     + error: "+O+e.details+W)
+                    print(R+" [!]"+W+"     + error occured: "+O+"probaly empty"+W)
                     print(R+" [!]"+W+"     + "+O+"ignoring subtitle."+W)
                 return ""
 
