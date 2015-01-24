@@ -82,4 +82,4 @@ Licensing
 ---------
 Pacvert is licensed under the GNU General Public License version 2 (GNU GPL v2).
 
-(C) 2015 Sonic-Y3k
+(C) 2014-2015 Sonic-Y3k
