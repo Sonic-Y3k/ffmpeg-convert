@@ -18,8 +18,8 @@
 ################################
 
 # Version
-VERSION = 3.13;
-DATE = "20.12.2014";
+VERSION = 3.14;
+DATE = "24.01.2015";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -118,6 +118,8 @@ class PacConf:
             self.DEFAULT_AACLIB="aac -strict -2"
 
         self.DEFAULT_AC3LIB="ac3"
+        self.DEFAULT_DTSLIB="dca -strict -2"
+        self.DEFAULT_CODEC=self.DEFAULT_AC3LIB
         self.check_dep()
         self.upgrade()
         self.handle_args()
@@ -318,7 +320,7 @@ class PacConf:
                 print (GR+' [+]'+W+' changing output directory to: \"'+G+options.directory+W+'\".'+W)
                 self.DEFAULT_OUTPUTDIR = options.directory
             if options.ext and (options.ext == "m4v" or options.ext == "mkv"):
-                print (GR+' [+]'+W+'changing output file extension to: \"'+G+options.ext+W+'\".'+W)
+                print (GR+' [+]'+W+' changing output file extension to: \"'+G+options.ext+W+'\".'+W)
                 self.DEFAULT_FILEFORMAT = options.ext
             if options.rmfile:
                 print (GR+' [+]'+R+' deleting '+W+'original file afterwards.'+W)
@@ -350,6 +352,13 @@ class PacConf:
             if options.nice:
                 print (GR+' [+]'+W+' changing nice to: \"'+G+options.nice+W+'\".'+W)
                 self.DEFAULT_NICE = options.nice
+            if options.dca:
+                if (options.ext == "mkv"):
+                    print (GR+' [+]'+W+' forcing mkv audio codec to: \"'+O+'DTS'+W+'\".'+W)
+                    self.DEFAULT_CODEC=self.DEFAULT_DTSLIB
+                else:
+                    print (R+' [!]'+W+' forcing dts codec can '+O+'only'+W+' be used with \"--ext mkv\" option!'+W)
+                    self.exit_gracefully(1)
         except IndexError:
             print ('\nindexerror\n\n')
 
@@ -361,6 +370,7 @@ class PacConf:
         option_parser = argparse.ArgumentParser()
         command_group = option_parser.add_argument_group('COMMAND')
         command_group.add_argument('--crf', help='Change crf-video value to <float>.', action='store', type=float, dest='crf')
+        command_group.add_argument('--dca', help='Forcing mkv audio codec to dts', action='store_true', dest='dca')
         command_group.add_argument('--ext', help='Change output extension.', action='store', dest='ext', choices=['m4v','mkv'])
         command_group.add_argument('--nice', help='Change nice value.', action='store', dest='nice', type=int)
         command_group.add_argument('--nocrop', help='Disable cropping', action='store_false', dest='nocrop')
@@ -795,7 +805,8 @@ class PacMedia:
                 if self.PacConf.DEFAULT_VERBOSE:
                     print (G+" [V]"+W+" * audio track #"+str(self.audCount+1)+":"+W)
                 if self.ext == "mkv" and \
-                        (c.codec == "ac3" or c.codec == "dca" or c.codec == "truehd"):
+                        ((c.codec == "dca" or c.codec == "truehd") or \
+                        (c.codec == "ac3" and self.PacConf.DEFAULT_CODEC == "ac3")):
                     self.add_streammap("-map 0:"+str(c.index))
                     self.add_streamopt("-c:a:"+str(self.audCount)+" copy")
                     self.add_streamopt("-metadata:s:a:"+str(self.audCount)+" language="+c.language)
@@ -808,18 +819,21 @@ class PacMedia:
                     self.audCount+=1
                     
                 elif self.ext == "mkv" and \
-                        (c.codec != "ac3" and c.codec != "dca" and c.codec != "truehd"):
+                        ((c.codec != "ac3" and c.codec != "dca" and c.codec != "truehd") or \
+                        (c.codec == "ac3" and self.PacConf.DEFAULT_CODEC != "ac3")):
                     self.add_streammap("-map 0:"+str(c.index))
-                    self.add_streamopt("-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB)
-                    self.add_streamopt(" -b:a:"+str(self.audCount)+" 640k")
-                    self.add_streamopt("-ac:"+str(self.audCount)+" "+str(min(max(2,c.audio_channels),6)))
+                    self.add_streamopt("-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_CODEC)
+                    if self.PacConf.DEFAULT_CODEC == "ac3":
+                        self.add_streamopt("-b:a:"+str(self.audCount)+" 640k")
+                        self.add_streamopt("-ac:"+str(self.audCount)+" "+str(min(max(2,c.audio_channels),6)))
                     self.add_streamopt("-metadata:s:a:"+str(self.audCount)+" language="+c.language)
                     
                     if self.PacConf.DEFAULT_VERBOSE:
                         print (G+" [V]"+W+"   + "+O+"-map 0:"+str(c.index)+W)
-                        print (G+" [V]"+W+"   + "+O+"-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_AC3LIB+W)
-                        print (G+" [V]"+W+"   + "+O+"-b:a:"+str(self.audCount)+" 640k"+W)
-                        print (G+" [V]"+W+"   + "+O+"-ac:"+str(self.audCount)+" "+str(min(max(2,c.audio_channels),6))+W)
+                        print (G+" [V]"+W+"   + "+O+"-c:a:"+str(self.audCount)+" "+self.PacConf.DEFAULT_CODEC+W)
+                        if self.PacConf.DEFAULT_CODEC == "ac3":
+                            print (G+" [V]"+W+"   + "+O+"-b:a:"+str(self.audCount)+" 640k"+W)
+                            print (G+" [V]"+W+"   + "+O+"-ac:"+str(self.audCount)+" "+str(min(max(2,c.audio_channels),6))+W)
                         print (G+" [V]"+W+"   + "+O+"-metadata:s:a:"+str(self.audCount)+" language="+c.language+W)
                     self.audCount+=1
                 
