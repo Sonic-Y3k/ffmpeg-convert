@@ -20,36 +20,36 @@ To download and execute pacvert, run the commands below:
 Usage:
 ------
 >
-    usage: pacvert.py [-h] [--chown CHOWN] [--crf CRF] [--ext {m4v,mkv}]
-                      [--nocrop] [--outdir DIRECTORY] [--rmfile] 
-                      [--shutdown] [--verbose]
-                      [--x264level {1,1b,1.1,1.2,1.3,2,2.1,2.2,3,3.1,3.2,4,4.1,4.2,5,5.1}]
-                      [--x264preset {ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow,placebo}]
-                      [--x264profile {baseline,main,high,high10,high422,high444}]
-                      [--x264tune {film,animation,grain,stillimage,psnr,ssim,fastdecode,zerolatency}]
+    usage: pacvert3.py [-h] [--crf CRF] [--dca] [--ext {m4v,mkv}] [--nice NICE]
+                   [--nocrop] [--outdir DIRECTORY] [--rmfile] [--verbose]
+                   [--version]
+                   [--x264level {1,1b,1.1,1.2,1.3,2,2.1,2.2,3,3.1,3.2,4,4.1,4.2,5,5.1}]
+                   [--x264preset {ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow,placebo}]
+                   [--x264profile {baseline,main,high,high10,high422,high444}]
+                   [--x264tune {film,animation,grain,stillimage,psnr,ssim,fastdecode,zerolatency}]
 >    
     optional arguments:
       -h, --help
 >    
 >
     COMMAND:
-    --chown CHOWN         Change output user.
-    --crf CRF             Change crf-video value to <float>.
-    --ext {m4v,mkv}       Change output extension.
-    --nice NICE           Change nice value.
-    --nocrop              Disable cropping
-    --outdir DIRECTORY    Change outdir to <directory>.
-    --rmfile              Remove original video.
-    --shutdown            Shutdown after finishing all jobs.
-    --verbose             Enable verbose mode.
-    --x264level {1,1b,1.1,1.2,1.3,2,2.1,2.2,3,3.1,3.2,4,4.1,4.2,5,5.1}
-                          Change x264-level
-    --x264preset {ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow,placebo}
-                          Change x264-preset
-    --x264profile {baseline,main,high,high10,high422,high444}
-                          Change x264-profile
-    --x264tune {film,animation,grain,stillimage,psnr,ssim,fastdecode,zerolatency}
-                          Change x264-tune
+        --crf CRF             Change crf-video value to <float>.
+        --dca                 Forcing mkv audio codec to dts
+        --ext {m4v,mkv}       Change output extension.
+        --nice NICE           Change nice value.
+        --nocrop              Disable cropping
+        --outdir DIRECTORY    Change outdir to <directory>.
+        --rmfile              Remove original video.
+        --verbose             Enable verbose mode.
+        --version             Display version number.
+        --x264level {1,1b,1.1,1.2,1.3,2,2.1,2.2,3,3.1,3.2,4,4.1,4.2,5,5.1}
+                        Change x264-level
+        --x264preset {ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow,placebo}
+                        Change x264-preset
+        --x264profile {baseline,main,high,high10,high422,high444}
+                        Change x264-profile
+        --x264tune {film,animation,grain,stillimage,psnr,ssim,fastdecode,zerolatency}
+                        Change x264-tune
 
 Default Options
 ---------------
@@ -82,4 +82,4 @@ Licensing
 ---------
 Pacvert is licensed under the GNU General Public License version 2 (GNU GPL v2).
 
-(C) 2014 Sonic-Y3k
+(C) 2015 Sonic-Y3k
