@@ -101,8 +101,103 @@ class Pacvert():
 
 		#Load or create config
 		self.loadConfigFile()
-		print(self.config.getboolean("FileSettings","DeleteFile"))
+
+		#Begin dependency check
+		self.checkDependencies()		
 	
+	def program_exists(self,program):
+		"""
+			Uses "wich" (linux command) to check if a program is installed
+		"""
+		proc = Popen(["which",program], stdout=PIPE, stderr=PIPE,universal_newlines=True)
+		txt = proc.communicate()
+		return txt[0].strip()   
+
+	def checkDependencies(self):
+		"""
+			Check for runtime dependencies
+		"""
+		self.message("Programs used:")
+		self.tools = {}
+
+		#ffmpeg
+		self.tools["ffmpeg"] = self.program_exists("ffmpeg")
+		if self.tools["ffmpeg"]:
+			proc = Popen(["ffmpeg","-version"], stdout=PIPE, stderr=PIPE,universal_newlines=True)
+			txt = proc.communicate()[0].strip().split(" ")[2]
+			self.message(O+"  * "+W+"FFmpeg:\t"+txt)
+		else:
+			self.message("Required program not found: "+C+"ffmpeg"+W+".",2)
+			self.exit_gracefully(1)
+
+		#ffprobe
+		self.tools["ffprobe"] = self.program_exists("ffprobe")
+		if self.tools["ffprobe"]:
+			proc = Popen(["ffprobe","-version"], stdout=PIPE, stderr=PIPE,universal_newlines=True)
+			txt = proc.communicate()[0].strip().split(" ")[2]
+			self.message(O+"  * "+W+"FFprobe:\t"+txt)
+		else:
+			self.message("Required program not found: "+C+"ffprobe"+W+".",2)
+			self.exit_gracefully(1)
+
+		#mplayer
+		self.tools["mplayer"] = self.program_exists("mplayer")
+		if self.tools["mplayer"]:
+			proc = Popen(["mplayer"], stdout=PIPE, stderr=PIPE,universal_newlines=True)
+			txt = proc.communicate()[0].strip().split(" ")[1]
+			self.message(O+"  * "+W+"MPlayer:\t"+txt)
+		else:
+			self.message("Required program not found: "+C+"mplayer"+W+".",2)
+			self.exit_gracefully(1)
+
+		#mkvextract
+		self.tools["mkvextract"] = self.program_exists("mkvextract")
+		if self.tools["mkvextract"]:
+			proc = Popen(["mkvextract","--version"], stdout=PIPE, stderr=PIPE,universal_newlines=True)
+			txt = proc.communicate()[0].strip().split(" ")[1].replace("v","")
+			self.message(O+"  * "+W+"MKVExtract:\t"+txt)
+		else:
+			self.message("Required program not found: "+C+"mkvextract"+W+".",2)
+			self.exit_gracefully(1)
+
+		#mediainfo
+		self.tools["mediainfo"] = self.program_exists("mediainfo")
+		if self.tools["mediainfo"]:
+			proc = Popen(["mediainfo","--version"], stdout=PIPE, stderr=PIPE,universal_newlines=True)
+			txt = proc.communicate()[0].strip().split(" ")[5].replace("v","")
+			self.message(O+"  * "+W+"MediaInfo:\t"+txt)
+		else:
+			self.message("Required program not found: "+C+"mediainfo"+W+".",2)
+			self.exit_gracefully(1)
+
+		#bdsup2subpp
+		self.tools["bdsup2subpp"] = self.program_exists("bdsup2subpp")
+		if self.tools["bdsup2subpp"]:
+			proc = Popen(["bdsup2subpp","--help"], stdout=PIPE, stderr=PIPE,universal_newlines=True)
+			txt = proc.communicate()[0].strip().split(" ")[1].replace("v","")
+			self.message(O+"  * "+W+"bdsup2sub++:\t"+txt)
+		else:
+			self.message("Required program not found: "+C+"bdsup2subpp"+W+".",2)
+			self.exit_gracefully(1)
+
+		#tesseract
+		self.tools["tesseract"] = self.program_exists("tesseract")
+		if self.tools["tesseract"]:
+			proc = Popen(["tesseract","--version"], stdout=PIPE, stderr=PIPE,universal_newlines=True)
+			txt = proc.communicate()[1].strip().split(" ")[1].replace("\n","")
+			self.message(O+"  * "+W+"Tesseract++:\t"+txt)
+		else:
+			self.message("Required program not found: "+C+"tesseract"+W+".",2)
+			self.exit_gracefully(1)
+
+		#vobsub2srt
+		self.tools["vobsub2srt"] = self.program_exists("vobsub2srt")
+		if self.tools["vobsub2srt"]:
+			self.message(O+"  * "+W+"VobSub2SRT:\t1.0")
+		else:
+			self.message("Required program not found: "+C+"vobsub2srt"+W+".",2)
+			self.exit_gracefully(1)
+
 	def loadConfigFile(self):
 		"""
 			Loads the Config-File
