@@ -94,6 +94,12 @@ class Pacvert():
 		# Initialize Banner
 		self.banner()
 	
+		#Check for Unix Systems
+		if self.getPlatfrom() != "Linux" and self.getPlatfrom() != "Darwin":
+			self.message("Only Linux/Darwin is currently supported.",2)
+			self.exit_gracefully(1)
+
+		#Load or create config
 		self.loadConfigFile()
 		print(self.config.getboolean("FileSettings","DeleteFile"))
 	
