@@ -43,8 +43,12 @@ import signal
 import argparse
 from subprocess import Popen, call, PIPE, check_output, CalledProcessError
 from sys import stdout, stdin
-import configparser
 
+try:
+	import configparser
+except ImportError:
+	import ConfigParser as configparser
+	
 try:
     from progressbar import *
 except ImportError:
@@ -99,12 +103,36 @@ class Pacvert():
 			self.message("Only Linux/Darwin is currently supported.",2)
 			self.exit_gracefully(1)
 
+		#Create temp directory
+		self.create_temp()
+
 		#Load or create config
 		self.loadConfigFile()
 
 		#Begin dependency check
-		self.checkDependencies()		
+		self.checkDependencies()
+
+		#misc
+		self.message("Miscellaneous Informations:")
+		self.message(O+"  * "+W+"Current Directory:\t"+os.getcwd())
+		self.message(O+"  * "+W+"Output Directory:\t"+os.getcwd()+"/output")
+		self.message(O+"  * "+W+"Temporary Directory:\t"+self.TEMP)
+
+		#Check for updates
+		self.upgrade()
+
+		#Exit
+		self.exit_gracefully()
 	
+	def create_temp(self):
+		"""
+			Creates temporary directory
+		"""
+		from tempfile import mkdtemp
+		self.TEMP = mkdtemp(prefix='pacvert')
+		if not self.TEMP.endswith(os.sep):
+			self.TEMP += os.sep
+
 	def program_exists(self,program):
 		"""
 			Uses "wich" (linux command) to check if a program is installed
@@ -185,7 +213,7 @@ class Pacvert():
 		if self.tools["tesseract"]:
 			proc = Popen(["tesseract","--version"], stdout=PIPE, stderr=PIPE,universal_newlines=True)
 			txt = proc.communicate()[1].strip().split(" ")[1].replace("\n","")
-			self.message(O+"  * "+W+"Tesseract++:\t"+txt)
+			self.message(O+"  * "+W+"Tesseract:\t"+txt)
 		else:
 			self.message("Required program not found: "+C+"tesseract"+W+".",2)
 			self.exit_gracefully(1)
@@ -297,6 +325,102 @@ class Pacvert():
 		else:
 			self.exit_gracefully(1)
 	
+	def get_remote_version(self):
+		"""
+			Get remote version from github
+		"""
+		rver = -1
+		try:
+			import urllib.request
+			sock = urllib.request.urlopen("https://raw.githubusercontent.com/Sonic-Y3k/ffmpeg-convert/master/pacvert.py")
+			page = str(sock.read()).strip()
+		except ImportError:
+			import urllib2
+			sock = urllib2.urlopen("https://raw.githubusercontent.com/Sonic-Y3k/ffmpeg-convert/master/pacvert.py")
+			page = str(sock.read()).strip()
+		except IOError:
+			return -1
+		
+		start = page.find("VERSION")
+		if start != -1:
+			page    = page[start+10:len(page)]
+			page    = page[0:page.find(";")]
+			try:
+				rver= float(page)
+			except ValueError:
+				rver=page.split('\n')[0]
+				self.message(O+"  * "+W+"Invalid remote version number", 2)
+		return rver
+	
+	def upgrade(self):
+		"""
+			checks for new version
+			and upgrades if necessary
+		"""
+		try:
+			remote_version = self.get_remote_version()
+			if remote_version == -1:
+				self.message(O+"  * "+W+"Unable to access github.",2)
+			elif remote_version > float (VERSION):
+				self.message(O+"  * "+W+"Version "+G+str(remote_version)+W+" is "+G+"available!"+W)
+				try:
+					response = raw_input(G+" [+]"+O+"   * "+W+"do you want to upgrade to the latest version? (y/n): ")
+				except NameError:
+					response = input(G+" [+]"+O+"   * "+W+"do you want to upgrade to the latest version? (y/n): ")
+				if not response.lower().startswith("y"):
+					self.message("Upgrading aborted",1)
+					return
+				self.message(O+"  * "+W+"Downloading update...")
+				try:
+					import urllib.request
+					sock = urllib.request.urlretrieve("https://raw.githubusercontent.com/Sonic-Y3k/ffmpeg-convert/master/pacvert.py","pacvert_new.py")
+				except ImportError:
+					import urllib2
+					sock = urllib2.urlopen("https://raw.githubusercontent.com/Sonic-Y3k/ffmpeg-convert/master/pacvert.py")
+					data = sock.read()
+					with open("pacvert_new.py", "wb") as code:
+						code.write(data)
+				except IOError:
+					self.message(O+"  * "+W+"Unable to download latest version",2)
+					self.exit_gracefully(1)
+				
+				this_file = __file__
+				if this_file.startswith('./'):
+					this_file = this_file[2:]
+				try:
+					f = open('update_pacvert.sh','w')
+					f.write('''#!/bin/sh\n
+						rm -rf ''' + this_file + '''\n
+						mv pacvert_new.py ''' + this_file + '''\n
+						rm -rf update_pacvert.sh\n
+						chmod +x ''' + this_file + '''\n
+						''')
+					f.close()
+				except PermissionError:
+					self.message(O+"  * "+W+"Can't open file \""+O+"update_pacvert.sh"+W+"\" for writing. Permission Denied.", 2)
+					self.exit_gracefully(1)
+
+				returncode = call(['chmod','+x','update_pacvert.sh'])
+				if returncode != 0:
+					self.message(O+"  * "+W+"Permission change returned unexpected code: "+str(returncode), 2)
+					self.exit_gracefully(1)
+				
+				returncode = call(['sh','update_pacvert.sh'])
+				if returncode != 0:
+					self.message(O+"  * "+W+"Upgrade script returned unexpected code: "+str(returncode), 2)
+					self.exit_gracefully(1)
+
+				self.message(O+"  * "+W+"Successfully updated! Please relaunch pacvert.")
+				self.exit_gracefully()
+
+			else:
+				self.message(O+"  * "+W+"Your copy of Pacvert is up to date")
+		except IOError:
+			self.message("Unknown error occured while updating.", 2)
+			self.exit_gracefully(1)
+				
+
+
 	def banner(self):
 		"""
 			Display ASCII art
@@ -324,8 +448,8 @@ class Pacvert():
 			We want to remove the temp folder and any files contained within it.
 		"""
 		from shutil import rmtree
-		#if os.path.exists(self.TEMP):
-		#	rmtree(self.TEMP)
+		if os.path.exists(self.TEMP):
+			rmtree(self.TEMP)
 		print (R+" [!]"+W+" quitting.")
 		print ("")
 		exit(code)
