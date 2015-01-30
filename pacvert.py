@@ -105,9 +105,27 @@ class Pacvert():
 		if os.path.exists(self.getConfigPath()):
 			#Config exists, very good!
 			self.config.read(self.getConfigPath())
+
+			#Check if config is deprecated
+			if self.config.getfloat("ConfigVersion","Version") < VERSION:
+				self.message("Your config is deprecated.",1)
+				self.message("Your config will be reset to defaults.",1)
+
+				try:
+					#Remove old config file
+					os.remove(self.getConfigPath())
+				except PermissionError:
+					self.message("Can't open config file \""+O+self.getConfigPath()+W+"\". Permission Denied.", 2)
+
+				#Recreate configuration file
+				self.loadConfigFile()
 		else:
 			#Config does not exists... we need to create.
 			
+			#Set Config Version
+			self.config.add_section("ConfigVersion")
+			self.config.set("ConfigVersion","Version",str(VERSION))
+
 			#General File Settings
 			self.config.add_section("FileSettings")
 			self.config.set("FileSettings", "DeleteFile","True")
@@ -135,6 +153,7 @@ class Pacvert():
 			self.config.set("AudioSettings","AC3Lib","ac3")
 			self.config.set("AudioSettings","DTSLib","dca -strict -2")
 			
+			#Write config to file
 			try:
 				cfgfile = open(self.getConfigPath(),'w')
 				self.config.write(cfgfile)
@@ -143,6 +162,7 @@ class Pacvert():
 			except PermissionError:
 				self.message("Can't open config file \""+O+self.getConfigPath()+W+"\". Permission Denied.", 2)
 			
+			#Exit
 			self.exit_gracefully(1)
 	
 	def getConfigPath(self):
