@@ -95,6 +95,12 @@ class Pacvert():
 		Main Class
 	"""
 	def __init__(self):
+		#Create temp directory
+		self.create_temp()
+
+		#Handle CLI Args
+		self.handle_args()
+
 		# Initialize Banner
 		self.banner()
 	
@@ -103,11 +109,14 @@ class Pacvert():
 			self.message("Only Linux/Darwin is currently supported.",2)
 			self.exit_gracefully(1)
 
-		#Create temp directory
-		self.create_temp()
-
 		#Load or create config
 		self.loadConfigFile()
+
+		#Set output directory
+		try:
+			self.OUTDIR = self.OUTDIR
+		except:
+			self.OUTDIR = os.getcwd()+"/output"
 
 		#Begin dependency check
 		self.checkDependencies()
@@ -115,11 +124,25 @@ class Pacvert():
 		#misc
 		self.message("Miscellaneous Informations:")
 		self.message(O+"  * "+W+"Current Directory:\t"+os.getcwd())
-		self.message(O+"  * "+W+"Output Directory:\t"+os.getcwd()+"/output")
+		self.message(O+"  * "+W+"Output Directory:\t"+self.OUTDIR)
 		self.message(O+"  * "+W+"Temporary Directory:\t"+self.TEMP)
 
 		#Check for updates
 		self.upgrade()
+
+		try:
+			self.FORCEDTS = self.FORCEDTS
+			self.message("Forcing DTS-Audio!",1)
+			self.message("This will be ignored with m4v files.",1)
+		except AttributeError:
+			self.FORCEDTS = False;
+
+		try:
+			self.FORCEX265 = self.FORCEX265
+			self.message("Forcing x265-Encoder!",1)
+			self.message("This will be ignored with m4v files.",1)
+		except AttributeError:
+			self.FORCEX265 = False;
 
 		#Exit
 		self.exit_gracefully()
@@ -414,12 +437,43 @@ class Pacvert():
 				self.exit_gracefully()
 
 			else:
-				self.message(O+"  * "+W+"Your copy of Pacvert is up to date")
+				self.message(O+"  * "+W+"Pacvert Version:\tUp to date")
 		except IOError:
 			self.message("Unknown error occured while updating.", 2)
 			self.exit_gracefully(1)
-				
 
+	def handle_args(self):
+		"""
+			Handles command line inputs
+		"""
+		opt_parser = self.build_opt_parser()
+		options = opt_parser.parse_args()
+		try:
+			if options.forcedts:
+				self.FORCEDTS=True
+			if options.forcex265:
+				self.FORCEX265=True
+			if options.outdir:
+				if os.path.exists(options.outdir):
+					self.OUTDIR=options.outdir
+				else:
+					self.message("Output directory does not exist.",2)
+					self.exit_gracefully(1)
+		except IndexError:
+			self.message("Argument IndexError",2)
+			self.exit_gracefully(1)
+
+	def build_opt_parser(self):
+		"""
+			Options are doubled for backwards compatability; will be removed soon
+			and fully moved to GNU-style
+		"""
+		option_parser = argparse.ArgumentParser()
+		command_group = option_parser.add_argument_group('COMMAND')
+		command_group.add_argument('--forcedts',help='Force use of dts-codec',action='store_true',dest='forcedts')
+		command_group.add_argument('--forcex265',help='Force use of x265-encoder',action='store_true',dest='forcex265')
+		command_group.add_argument('--outdir',help='Output directory',action='store',dest='outdir')
+		return option_parser
 
 	def banner(self):
 		"""
