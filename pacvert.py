@@ -30,6 +30,8 @@ P  = '\033[35m' # purple
 C  = '\033[36m' # cyan
 GR = '\033[37m' # gray
 
+TOCONVERT = []
+
 #############
 # Libraries #
 #############
@@ -98,6 +100,9 @@ class Pacvert():
 		#Create temp directory
 		self.create_temp()
 
+		#Register strg+c
+		signal.signal(signal.SIGINT, self.exit_signal)
+
 		#Handle CLI Args
 		self.handle_args()
 
@@ -144,9 +149,36 @@ class Pacvert():
 		except AttributeError:
 			self.FORCEX265 = False;
 
+		#Search for files
+		self.searchFiles()
+		self.message("Overview:")
+		self.message(O+"  * "+W+"Files to convert:\t"+str(len(TOCONVERT)))
+
+		tempbytes = 0
+		for a in TOCONVERT:
+			tempbytes += a.pacvertFilesize
+
+		#print(tempbytes)
+		self.message(O+"  * "+W+"Cumulative size:\t"+self.sizeof_fmt(tempbytes))
+
 		#Exit
 		self.exit_gracefully()
 	
+	def exit_signal(self,signum,frame):
+		self.exit_gracefully(signum)
+
+	def searchFiles(self):
+		"""
+			Locate files that need a conversion
+		"""
+		global TOCONVERT
+		for root,dirnames,filenames in os.walk(os.getcwd()):
+			for filename in filenames:
+				file_ext = os.path.splitext(filename)
+				if file_ext[1].replace(".","") in self.config.get("FileSettings","SearchExtensions").split(",") and root != self.OUTDIR:
+					#Files appear to be valid, by their extension
+					TOCONVERT.append(PacvertMedia(root+"/"+filename, self.config))
+					
 	def create_temp(self):
 		"""
 			Creates temporary directory
@@ -270,7 +302,7 @@ class Pacvert():
 					self.message("Can't open config file \""+O+self.getConfigPath()+W+"\". Permission Denied.", 2)
 
 				#Recreate configuration file
-				self.loadConfigFile()
+				self.loadConfigFile()				
 		else:
 			#Config does not exists... we need to create.
 			
@@ -282,6 +314,7 @@ class Pacvert():
 			self.config.add_section("FileSettings")
 			self.config.set("FileSettings", "DeleteFile","True")
 			self.config.set("FileSettings", "FileFormat", "")
+			self.config.set("FileSettings", "SearchExtensions", "avi,flv,mov,mp4,mpeg,mpg,ogv,wmv,m2ts,rmvb,rm,3gp,m4v,3g2,mj2,asf,divx,vob,mkv")
 			
 			#Video Settings
 			self.config.add_section("VideoSettings")
@@ -475,6 +508,14 @@ class Pacvert():
 		command_group.add_argument('--outdir',help='Output directory',action='store',dest='outdir')
 		return option_parser
 
+	def sizeof_fmt (self, num, suffix='B'):
+		for unit in ['','K','M','G','T','P','E','Z']:
+			if abs(num) < 1024.0:
+				return "%3.1f%s%s" % (num, unit, suffix)
+			num /= 1024.0
+		return "%.1f%s%s" % (num, 'Yi', suffix)
+
+
 	def banner(self):
 		"""
 			Display ASCII art
@@ -505,8 +546,17 @@ class Pacvert():
 		if os.path.exists(self.TEMP):
 			rmtree(self.TEMP)
 		print (R+" [!]"+W+" quitting.")
-		print ("")
 		exit(code)
 		
+class PacvertMedia:
+	"""
+		Holds data for a Media and perfoms actions
+	"""
+	def __init__(self, pacvertFile, pacvertConfig):
+		self.pacvertFile = pacvertFile
+		self.pacvertConfig = pacvertConfig
+		self.pacvertFilesize = os.stat(self.pacvertFile).st_size
 
-Pacvert()
+
+if __name__ == '__main__':
+	Pacvert()
