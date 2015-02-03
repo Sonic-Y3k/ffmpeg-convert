@@ -175,6 +175,7 @@ class Pacvert():
 			element.analyze(self.tools)
 			element.analyze_video(self.tools,self.options)
 			element.analyze_audio(self.tools,self.options)
+			element.analyze_subtitles(self.tools,self.options)
 
 		#Exit
 		self.exit_gracefully()
@@ -577,6 +578,7 @@ class PacvertMedia:
 		self.format = PacvertMediaFormatInfo()
 		self.streammap = []
 		self.streamopt = []
+		self.addFiles = []
 
 		self.pacvertFileExtensions = self.config.get("FileSettings","FileFormat") \
 		if self.config.get("FileSettings","FileFormat") != "" \
@@ -640,6 +642,7 @@ class PacvertMedia:
 		for b in proc_mediainfo:
 			if b.split('=')[0] == "crf":
 				crf = float(b.split('=')[1].replace(',','.'))
+				self.message(B+"    + "+W+"-source CRF: "+str(crf))
 		
 		for c in self.streams:
 			#Videostream ignore png streams!
@@ -826,8 +829,338 @@ class PacvertMedia:
 					
 				for idx in range(tempIdx,len(self.streamopt)):				
 					self.message(B+"    + "+W+self.streamopt[idx])
+	
+	def analyze_subtitles(self, tools, options):
+		"""
+			analyze gathered streams for
+			video, audio and subtitles
+		"""
+		subCount = 0
+		for c in self.streams:
+			if c.type == "subtitle":
+				tempIdx = len(self.streamopt)
+				self.message(O+"  * "+W+"Subtitle track #"+str(subCount+1)+":"+W)
+				if (self.pacvertFileExtensions == "mkv" and (c.codec == "ass" or c.codec == "srt" or c.codec == "ssa")) \
+				or (self.pacvertFileExtensions == "m4v" and c.codec == "mov_text"):
+					self.streammap.append("-map 0:"+str(c.index))
+					self.streamopt.append("-c:s:"+str(subCount)+" copy")
+					self.streamopt.append("-metadata:s:s:"+str(subCount)+" language="+c.language)
+					subCount+=1
+				elif (self.pacvertFileExtensions == "mkv" and (c.codec == "pgssub" or c.codec == "dvdsub")):
+					#Convert to SRT
+					newSub=self.convert_subtitle(c.index,c.language,c.codec,tools,options)
+					if newSub != "":
+						self.addFiles.append(newSub)
+						self.streammap.append("-map "+str(len(self.addFiles))+":0")
+						self.streamopt.append("-c:s:"+str(subCount)+" copy")
+						self.streamopt.append("-metadata:s:s:"+str(subCount)+" language="+c.language)
+						subCount+=1
+				elif (self.pacvertFileExtensions == "m4v" and (c.codec == "pgssub" or c.codec == "dvdsub")):
+					#Convert to mov_text
+					newSub=self.convert_subtitle(c.index,c.language,c.codec,tools,options)
+					if newSub != "":
+						self.streammap.append("-map "+str(len(self.addFiles))+":0")
+						self.streamopt.append("-c:s:"+str(subCount)+" mov_text")
+						self.streamopt.append("-metadata:s:s:"+str(subCount)+" language="+c.language)
+						subCount+=1
+				else:
+					self.streammap.append("-map 0:"+str(c.index))
+					if self.pacvertFileExtensions == "mkv":
+						self.streamopt.append("-c:s:"+str(subCount)+" srt")
+						self.streamopt.append("-metadata:s:s:"+str(subCount)+" language="+c.language)
+						subCount+=1
+					else:
+						self.streamopt.append("-c:s:"+str(subCount)+" mov_text")
+						self.streamopt.append("-metadata:s:s:"+str(subCount)+" language="+c.language)
+						subCount+=1
 				
+				for idx in range(tempIdx,len(self.streamopt)):
+					self.message(B+"    + "+W+self.streamopt[idx])
+	
+	def convert_subtitle_step1(self,cmds,timeout=20):
+		"""
+			Extracts a subtitle from
+			source file.
+		"""
+		if timeout:
+			def on_sigalrm(*_):
+				signal.signal(signal.SIGALRM,signal.SIG_DFL)
+				raise Exception("timed out while waiting for mkvextract")
+			signal.signal(signal.SIGALRM,on_sigalrm)
+			
+			try:
+				p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
+			except OSError:
+				raise Exception("Error while calling mkvextract binary")
+			
+			yielded = False
+			buf = ""
+			total_output = ""
+			pat = re.compile(r'[A-Za-z]*: ([0-9]*)')
+			
+			while True:
+				if timeout:
+					signal.alarm(timeout)
+				ret = p.stdout.read(10)
+				
+				if timeout:
+					signal.alarm(0)
+				
+				if not ret:
+					break
+					
+				ret = ret.decode("ISO-8859-1")
+				total_output += ret
+				buf += ret
+				if "\r" in buf:
+					line,buf = buf.split("\r", 1)
+					tmp = pat.findall(line)
+					
+					if len(tmp) == 1:
+						yielded = True
+						yield tmp[0]
+			if timeout:
+				signal.signal(signal.SIGALRM,signal.SIG_DFL)
+			
+			p.communicate()
+			if total_output == "":
+				raise Exception("Error while calling mkvextract binary")
+			
+			cmd = " ".join(cmds)
+			if "\n" in total_output:
+				line = total_output.split("\n")[-2]
+				if line.startswith("Received signal"):
+					raise PacvertError(line.split(':')[0], cmd, total_output,pid=p.pid)
+				if not yielded:
+					raise PacvertError('Unknown mkvextract error', cmd,total_output, line, pid=p.pid)
+			if p.returncode != 0:
+				raise PacvertError('Exited with code %d' % p.returncode,cmd,total_output, pid=p.pid)
+	    
+	def convert_subtitle_step2(self,cmds,timeout=20):
+		"""
+			Extracts a subtitle from
+			source file.
+		"""
+		if timeout:
+			def on_sigalrm(*_):
+				signal.signal(signal.SIGALRM,signal.SIG_DFL)
+				raise Exception("timed out while waiting for bdsup2subpp")
+			signal.signal(signal.SIGALRM,on_sigalrm)
+
+		try:
+			p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
+		except OSError:
+			raise Exception("Error while calling bdsup2subpp binary")
+
+		yielded = False
+		buf = ""
+		total_output = ""
+		pat = re.compile(r'[A-Za-z ]*([0-9]*)\/([0-9]*)')
+
+		while True:
+			if timeout:
+				signal.alarm(timeout)
+
+			ret = p.stdout.read(10)
+
+			if timeout:
+				signal.alarm(0)
+
+			if not ret:
+				break
+
+			ret = ret.decode("ISO-8859-1")
+			total_output += str(ret)
+			buf += str(ret)
+			if "\n" in buf:
+				line,buf = buf.split("\n", 1)
+				tmp = pat.findall(line)
+
+				if len(tmp) == 1 and tmp[0][0] is not "" and tmp[0][1] is not "":
+					yielded = True
+					yield tmp[0]
+		if timeout:
+			signal.signal(signal.SIGALRM,signal.SIG_DFL)
+
+		p.communicate()
+
+		if total_output == "":
+			raise Exception("Error while calling bdsup2subpp binary")
 		
+		cmd = " ".join(cmds)
+		if "\n" in total_output:
+			line = total_output.split("\n")[-2]
+			if line.startswith("Received signal"):
+				raise PacvertError(line.split(':')[0], cmd, total_output,pid=p.pid)
+			if not yielded:
+				raise PacvertError('Unknown bdsup2subpp error', cmd,total_output, line, pid=p.pid)
+		if p.returncode != 0:
+			raise PacvertError('Exited with code %d' % p.returncode,cmd,total_output, pid=p.pid)			
+	
+	def convert_subtitle_step3(self,cmds,tools,timeout=20):
+		"""
+			Extracts a subtitle from
+			source file.
+		"""
+		if timeout:
+			def on_sigalrm(*_):
+				signal.signal(signal.SIGALRM,signal.SIG_DFL)
+				raise Exception("timed out while waiting for vobsub2srt")
+			signal.signal(signal.SIGALRM,on_sigalrm)
+		
+		try:
+			test = Popen([tools['tesseract'], "--list-langs"], stdout=PIPE, stderr=PIPE)
+			data = test.communicate()[1].split()
+			lang = str(cmds[2])
+			if lang not in str(data):
+				cmds.remove(lang)
+				cmds.remove("--tesseract-lang")
+
+			p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
+		except OSError:
+			raise Exception("Error while calling vobsub2srt binary")
+
+		yielded = False
+		buf = ""
+		total_output = ""
+		pat = re.compile(r'([0-9]*).*')
+		
+		while True:
+			if timeout:
+				signal.alarm(timeout)
+
+			ret = p.stdout.readline()
+		
+			if timeout:
+				signal.alarm(0)
+
+			if not ret:
+				break
+
+			ret = ret.decode("ISO-8859-1")
+			total_output += ret
+			buf += ret
+
+			tmp = pat.findall(ret)
+			if tmp[0] is not "" and tmp[0].isdigit():
+				yielded = True
+				yield tmp[0]
+
+		if timeout:
+			signal.signal(signal.SIGALRM,signal.SIG_DFL)
+
+		p.communicate()
+
+		if total_output == "":
+			raise Exception("Error while calling vobsub2srt binary")
+		
+		cmd = " ".join(cmds)
+		if "\n" in total_output:
+			line = total_output.split("\n")[-2]
+			if line.startswith("Error opening data file"):
+				raise ToolConvertError("Tesseract language not found.", cmd, total_output,pid=p.pid)
+			if line.startswith("Received signal"):
+				raise ToolConvertError(line.split(':')[0], cmd, total_output,pid=p.pid)
+			if not yielded:
+				if not "Wrote Subtitles to" in total_output:
+					raise ToolConvertError('Unknown vobsub2srt error', cmd,total_output, line, pid=p.pid)
+		if p.returncode != 0:
+			raise ToolConvertError('Exited with code %d' % p.returncode,cmd,total_output, pid=p.pid)
+	
+	def convert_subtitle(self,index,lang,codec,tools,options,timeout=10):
+		"""
+			Converts subtitle to srt
+		"""
+		tempFileName=options['temp']+os.path.splitext(self.pacvertName)[0]+"."+str(index)
+		if codec != "dvdsub":
+			cmd_mkvextract=[tools['mkvextract'],"tracks",self.pacvertFile,str(index)+":"+tempFileName+".sup"]
+		else:
+			cmd_mkvextract=[tools['mkvextract'],"tracks",self.pacvertFile,str(index)+":"+tempFileName+".sub"]
+			
+		cmd_bdsup2subpp=[tools['bdsup2subpp'],"-o",tempFileName+".sub",tempFileName+".sup"]
+		
+		if os.path.isdir("/usr/share/tessdata"):
+			tessdata = "/usr/share/tessdata"
+		else:
+			tessdata = "/usr/local/share/tessdata"
+		
+		cmd_vobsub2srt=[tools['vobsub2srt'],"--tesseract-lang",lang,"--tesseract-data",tessdata,tempFileName,"--verbose"]
+		
+		#on error, skip subtitle
+		try:
+			#First Block, let's extract the subtitle from file.
+			widgets = [G+' [',AnimatedMarker(),']','     '+B+'+'+W+' Extracting subtitle:\t',Percentage(),' (',ETA(),')']
+			pbar = ProgressBar(widgets=widgets, maxval=100)
+			pbar.start()
+			
+			step1 = self.convert_subtitle_step1(cmd_mkvextract)
+			pval = 0
+			for val in step1:
+				try:
+					temp = int (val)
+				except TypeError:
+					temp = pval
+					
+				if temp > pval and temp < 101:
+					pbar.update(temp)
+					pval = temp
+			
+			pbar.finish()
+			
+			#Second Block, extract frames from subtitle
+			if codec != "dvdsub":
+				widgets = [G+' [',AnimatedMarker(),']','     '+B+'+'+W+' Extracting frames:\t',Percentage(),' (',ETA(),')']
+				pbar = ProgressBar(widgets=widgets, maxval=100.0)
+				pbar.start()
+			
+				step2 = self.convert_subtitle_step2(cmd_bdsup2subpp)
+				pval = 0.0
+				for val in step2:
+					try:
+						temp = float(int(val[0])/int(val[1]))*100
+					except TypeError:
+						temp = pval
+					
+					if temp > pval and temp <= 1:
+						pbar.update(temp)
+					pval = temp
+				
+				pbar.finish()
+			
+			#Third Block, ocr extracted frames
+			length=0
+			ins = open(tempFileName+'.idx', "r")
+			for line in ins:
+				if "timestamp" in line:
+					length+=1
+			
+			widgets = [G+' [',AnimatedMarker(),']','     '+B+'+'+W+' OCR on frames:\t',Percentage(),' (',ETA(),')']
+			pbar = ProgressBar(widgets=widgets, maxval=length)
+			pbar.start()
+			
+			step3 = self.convert_subtitle_step3(cmd_vobsub2srt,tools)
+			pval = 0
+			for val in step3:
+				try:
+					temp = int(val)
+				except TypeError:
+					temp = pval
+				
+				if temp > pval and temp <= length:
+					pbar.update(temp)
+				pval = temp
+			
+			pbar.finish()
+			
+		except:
+			try:
+				pbar.finish()
+			except:
+				return ""
+				
+			return ""
+			
+	
 	def message(self, mMessage, mType = 0):
 		if mType == 0:
 			print(G+" [+] "+W+mMessage+W)
