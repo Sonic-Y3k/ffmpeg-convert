@@ -176,6 +176,40 @@ class Pacvert():
 			element.analyze_video(self.tools,self.options)
 			element.analyze_audio(self.tools,self.options)
 			element.analyze_subtitles(self.tools,self.options)
+		
+		#Beginn to convert
+		currentc = 1
+		for element in TOCONVERT:
+			try:
+				conv = element.convert(self.tools,self.options,30)
+				frames = element.frames
+				current_zero = str(currentc).zfill(len(str(len(TOCONVERT))))
+				widgets = [G+' [',AnimatedMarker(),'] '+W+' Converting: '+element.pacvertName[:10]+'... ('+current_zero+'/'+str(len(TOCONVERT))+')',' ',Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()]
+			
+				pbar = ProgressBar(widgets=widgets,maxval=element.frames)
+				pbar.start()
+				pval = 0
+			
+				for val in conv:
+					try:
+						temp = int(val[0])
+					except TypeError:
+						temp = pval
+				
+					widgets[8] = FormatLabel(str(val[1])+" FPS")
+					if temp <= element.frames:
+						pbar.update(temp)
+						pval = temp
+					else:
+						pbar.update(pval)
+				pbar.finish()
+				currentc += 1
+			except PacvertError:
+				try:
+					pbar.finish()
+				except:
+					""""""
+			element.check_sanity(self.tools,self.options)
 
 		#Exit
 		self.exit_gracefully()
@@ -331,6 +365,7 @@ class Pacvert():
 			self.config.set("FileSettings", "DeleteFile","True")
 			self.config.set("FileSettings", "FileFormat", "")
 			self.config.set("FileSettings", "SearchExtensions", "avi,flv,mov,mp4,mpeg,mpg,ogv,wmv,m2ts,rmvb,rm,3gp,m4v,3g2,mj2,asf,divx,vob,mkv")
+			self.config.set("FileSettings", "MaxDiff", "50")
 			
 			#Video Settings
 			self.config.add_section("VideoSettings")
@@ -1072,6 +1107,8 @@ class PacvertMedia:
 			Converts subtitle to srt
 		"""
 		tempFileName=options['temp']+os.path.splitext(self.pacvertName)[0]+"."+str(index)
+		tempFileName = tempFileName.replace(" ","_")
+		
 		if codec != "dvdsub":
 			cmd_mkvextract=[tools['mkvextract'],"tracks",self.pacvertFile,str(index)+":"+tempFileName+".sup"]
 		else:
@@ -1152,13 +1189,145 @@ class PacvertMedia:
 			
 			pbar.finish()
 			
+			
+			if os.path.isfile(tempFileName+".srt"):
+				return tempFileName+".srt"
 		except:
 			try:
 				pbar.finish()
+				return ""
 			except:
 				return ""
 				
-			return ""
+		return ""
+	
+	def getFlags(self,tools):
+		cmd = []
+		cmd.append(tools['ffmpeg'])
+		cmd.append("-i")
+		cmd.append(self.pacvertFile)
+		for i in self.addFiles:
+			cmd.append("-i")
+			cmd.append(i)
+			
+		for i in self.streammap:
+			cmd.extend(i.split(" "))
+		
+		for i in self.streamopt:
+			cmd.extend(i.split(" "))
+		
+		return cmd
+		
+	
+	def convert(self,tools,options,timeout=10):
+		if not os.path.exists(self.pacvertFile):
+			raise Exception("Input file doesn't exists: "+self.pacvertFile)
+		
+		if not os.path.exists(options['outdir']):
+			os.makedirs(options['outdir'])
+
+		outfile = options['outdir']+"/"+os.path.splitext(self.pacvertName)[0]+"."+self.pacvertFileExtensions
+		cmds = self.getFlags(tools)
+		cmds.extend(['-y', outfile])
+
+		if timeout:
+			def on_sigalrm(*_):
+				signal.signal(signal.SIGALRM,signal.SIG_DFL)
+				raise PacvertError("Timed out while waiting for ffmpeg","","")
+			signal.signal(signal.SIGALRM,on_sigalrm)
+
+		try:
+			p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
+		except OSError:
+			raise PacvertError("Error while calling ffmpeg binary","","")
+		
+		yielded = False
+		buf = ""
+		total_output = ""
+		pat = re.compile(r'frame=\s*([0-9]+)\s*fps=\s*([0-9]+)')
+		while True:
+			if timeout:
+				signal.alarm(timeout)
+
+			ret = p.stderr.read(10)
+
+			if timeout:
+				signal.alarm(0)
+
+			if not ret:
+				break
+			
+			ret = ret.decode("ISO-8859-1")
+			total_output += ret
+			buf += str(ret)
+			if "\r" in buf:
+				line,buf = buf.split("\r", 1)
+
+				tmp = pat.findall(line)
+			
+				if len(tmp) == 1:
+					yielded = True
+					yield tmp[0]
+		if timeout:
+			signal.signal(signal.SIGALRM,signal.SIG_DFL)
+
+		p.communicate()
+
+		if total_output == "":
+			raise Exception("Error while calling ffmpeg binary")
+
+		cmd = " ".join(cmds)
+		if "\n" in total_output:
+			line = total_output.split("\n")[-2]
+
+			if line.startswith("Received signal"):
+				raise PacvertError(line.split(':')[0], cmd, total_output,pid=p.pid)
+			if line.startswith(self.pacvertPath + ': '):
+				err = line[len(self.pacvertPath) + 2:]
+				raise PacvertError('Encoding error',cmd,total_output,err,pid=p.pid)
+			if line.startswith('Error while '):
+				raise PacvertError('Encoding error',cmd,total_output,line,pid=p.pid)
+			if not yielded:
+				raise PacvertError('Unknown ffmpeg error', cmd,total_output, line, pid=p.pid)
+		if p.returncode != 0:
+			raise PacvertError('Exited with code %d' % p.returncode,cmd,total_output, pid=p.pid)
+			
+	def check_sanity(self,tools,options):
+		"""
+		"""
+		# Disabling cropping to speed up things.
+		old_c = self.config.getboolean("VideoSettings","Crop")
+		self.config.set("VideoSettings","CROP","False")
+
+		#Analyze output
+		output = options['outdir']+"/"+os.path.splitext(self.pacvertName)[0]+"."+self.pacvertFileExtensions
+		outputf = PacvertMedia(output,self.config)
+		outputf.analyze(tools)
+		outputf.analyze_video(tools,options)
+
+		# Restore cropping
+		self.config.set("VideoSettings","CROP",str(old_c))
+
+		# Calculate difference in both files
+		pre_frames = self.frames
+		new_frames = outputf.frames
+		diff = int(abs(pre_frames-new_frames))
+
+		#maxdiff in Frames
+		maxdiff = self.config.getint("FileSettings","MaxDiff")
+
+		# Proceed...
+		if self.config.getboolean('FileSettings','deletefile') and diff <= maxdiff:
+			self.message("Passed sanity check - "+O+"deleting"+W+" file"+W)
+			os.remove(self.path)
+		elif self.config.getboolean('FileSettings','deletefile') and diff > maxdiff:
+			self.message("Failed sanity check (max diff: "+str(maxdiff)+" | cur diff: "+str(diff)+") - keeping old & removing new file"+W,2)
+			os.remove(output)
+		elif not self.config.getboolean('FileSettings','deletefile') and diff <= maxdiff:
+			self.message("Passed sanity check - "+O+"keeping"+W+" file"+W)
+		elif diff > maxdiff:
+			self.message("Failed sanity check (max diff: "+str(maxdiff)+" | cur diff: "+str(diff)+")  - removing "+O+"NEW"+W+" file"+W,2)
+			os.remove(output)
 			
 	
 	def message(self, mMessage, mType = 0):
