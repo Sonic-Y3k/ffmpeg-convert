@@ -125,6 +125,9 @@ class Pacvert():
 		except KeyError:
 			self.options['outdir'] = os.getcwd()+"/output"
 
+		#Set to silent
+		self.options['silent'] = False
+
 		#Begin dependency check
 		self.checkDependencies()
 
@@ -172,19 +175,27 @@ class Pacvert():
 
 		#Beginning with deep analysis
 		for element in TOCONVERT:
-			element.analyze(self.tools)
+			element.analyze(self.tools,self.options)
 			element.analyze_video(self.tools,self.options)
 			element.analyze_audio(self.tools,self.options)
 			element.analyze_subtitles(self.tools,self.options)
 		
+		TOCONVERT.sort(key=lambda x: x.pacvertName, reverse=False)
+
 		#Beginn to convert
+		self.message("Converting:")
 		currentc = 1
 		for element in TOCONVERT:
+			current_zero = str(currentc).zfill(len(str(len(TOCONVERT))))
+			if len(element.pacvertName) > 20:
+				self.message(O+"  * "+W+element.pacvertName[:17]+"... ("+current_zero+"/"+str(len(TOCONVERT))+"):")
+			else:
+				self.message(O+"  * "+W+element.pacvertName+" ("+current_zero+"/"+str(len(TOCONVERT))+"):")
 			try:
 				conv = element.convert(self.tools,self.options,30)
 				frames = element.frames
-				current_zero = str(currentc).zfill(len(str(len(TOCONVERT))))
-				widgets = [G+' [',AnimatedMarker(),'] '+W+' Converting: '+element.pacvertName[:10]+'... ('+current_zero+'/'+str(len(TOCONVERT))+')',' ',Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()]
+				
+				widgets = [G+' [',AnimatedMarker(),'] ',B+'    +'+W,Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()]
 			
 				pbar = ProgressBar(widgets=widgets,maxval=element.frames)
 				pbar.start()
@@ -619,13 +630,14 @@ class PacvertMedia:
 		if self.config.get("FileSettings","FileFormat") != "" \
 		else "mkv" if self.pacvertFilesize > 5000000000 else "m4v"
 
-	def analyze(self,tools):
+	def analyze(self,tools,options):
 		"""
 			use ffprobe to add all streams to this object.
 		"""
-		self.message(B+"Creating new job configuration:")
-		self.message(O+"  * "+W+"Filename:\t"+self.pacvertName)
-		self.message(O+"  * "+W+"Filesize:\t"+self.sizeof_fmt(self.pacvertFilesize))
+		if not options['silent']:
+			self.message(B+"Creating new job configuration:")
+			self.message(O+"  * "+W+"Filename:\t"+self.pacvertName)
+			self.message(O+"  * "+W+"Filesize:\t"+self.sizeof_fmt(self.pacvertFilesize))
 		
 		#calling ffprobe
 		cmd = [tools['ffprobe'],'-show_format','-show_streams',self.pacvertFile]
@@ -664,7 +676,8 @@ class PacvertMedia:
 			analyze gathered streams for
 			video, audio and subtitles
 		"""
-		self.message(O+"  * "+W+"Video track:")
+		if not options['silent']:
+			self.message(O+"  * "+W+"Video track:")
 		
 		#check for crf value
 		cmd = [tools['mediainfo'],"--Output='Video;%Encoded_Library_Settings%'",self.pacvertFile]
@@ -726,8 +739,8 @@ class PacvertMedia:
 					else:
 						self.streamopt.append("-c:v:0 copy")
 						self.streamopt.append("-metadata:s:v:0 language="+c.language)
-				
-				for idx in range(tempIdx,len(self.streamopt)):				
+				if not options['silent']:
+					for idx in range(tempIdx,len(self.streamopt)):				
 						self.message(B+"    + "+W+self.streamopt[idx])
 	
 	def analyze_crop(self,tools):
@@ -737,8 +750,11 @@ class PacvertMedia:
 		ret = []
 		crop = []
 		crop_row = []
+		
+		pbar = ProgressBar(widgets=[G+' [',AnimatedMarker(),'] '+B+'    + '+W+'Analyzing cropping rectangle.\t']).start()
 		while a < total_loops:
 			a+=1
+			pbar.update(a)
 			skip_secs=35*a
 			cmd = [tools['mplayer'],self.pacvertFile,"-ss",str(skip_secs),"-identify","-frames","20","-vo","md5sum","-ao","null","-nocache","-quiet", "-vf", "cropdetect=20:16" ]
 			proc_mplayer = check_output(cmd, stderr=DN)
@@ -759,6 +775,8 @@ class PacvertMedia:
 		ret=crop_row
 		crop_row = []
 		
+		pbar.finish()
+
 		for c in crop:
 			if int(c[0]) > int(ret[0]):
 				ret[0] = c[0]
@@ -775,10 +793,10 @@ class PacvertMedia:
 			video, audio and subtitles
 		"""
 		audCount = 0
-		self.message(O+"  * "+W+"Audio tracks:")
 				
 		for c in self.streams:	
 			if c.type == "audio":
+				self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
 				tempIdx = len(self.streamopt)
 				self.streammap.append("-map 0:"+str(c.index))
 				self.message(B+"    + "+W+"-map 0:"+str(c.index))
@@ -834,18 +852,42 @@ class PacvertMedia:
 						self.streamopt.append("-ac:"+str(audCount+1)+" 2")
 						self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
 						audCount+=1
+						
+						#Output
+						for idx in range(tempIdx,len(self.streamopt)):				
+							self.message(B+"    + "+W+self.streamopt[idx])
+						tempIdx = len(self.streamopt)
+						
+						self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
 						self.streamopt.append("-c:a:"+str(audCount)+" copy")
 						self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
 						audCount+=1
+						
+						#Output
+						for idx in range(tempIdx,len(self.streamopt)):				
+							self.message(B+"    + "+W+self.streamopt[idx])
+						tempIdx = len(self.streamopt)
+						
 					elif doubleLang == 0 and c.codec == "aac":
 						self.streamopt.append("-c:a:"+str(audCount)+" copy")
 						self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
 						audCount+=1
+						
+						#Output
+						for idx in range(tempIdx,len(self.streamopt)):				
+							self.message(B+"    + "+W+self.streamopt[idx])
+						tempIdx = len(self.streamopt)
+						
+						self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
 						self.streamopt.append("-c:a:"+str(audCount)+" "+options['config'].get("AudioSettings","ac3lib"))
 						self.streamopt.append("-b:a:"+str(audCount)+" 640k")
 						self.streamopt.append("-ac:"+str(audCount+1)+" "+str(min(max(2,c.audio_channels),6)))
 						self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
 						audCount+=1
+						#Output
+						for idx in range(tempIdx,len(self.streamopt)):				
+							self.message(B+"    + "+W+self.streamopt[idx])
+						tempIdx = len(self.streamopt)
 					else:
 						self.streamopt.append("-c:a:"+str(audCount)+" copy")
 						self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
@@ -855,15 +897,23 @@ class PacvertMedia:
 					self.streamopt.append("-b:a:"+str(audCount)+" 320k")
 					self.streamopt.append("-ac:"+str(audCount+1)+" 2")
 					self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
+					
+					#Output
+					for idx in range(tempIdx,len(self.streamopt)):				
+						self.message(B+"    + "+W+self.streamopt[idx])
+					tempIdx = len(self.streamopt)
+					
 					audCount+=1
+					self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
 					self.streamopt.append("-c:a:"+str(audCount)+" "+options['config'].get("AudioSettings","ac3lib"))
 					self.streamopt.append("-b:a:"+str(audCount)+" 640k")
 					self.streamopt.append("-ac:"+str(audCount+1)+" "+str(min(max(2,c.audio_channels),6)))
 					self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
 					audCount+=1
 					
-				for idx in range(tempIdx,len(self.streamopt)):				
-					self.message(B+"    + "+W+self.streamopt[idx])
+					#Output
+					for idx in range(tempIdx,len(self.streamopt)):				
+						self.message(B+"    + "+W+self.streamopt[idx])
 	
 	def analyze_subtitles(self, tools, options):
 		"""
@@ -890,6 +940,8 @@ class PacvertMedia:
 						self.streamopt.append("-c:s:"+str(subCount)+" copy")
 						self.streamopt.append("-metadata:s:s:"+str(subCount)+" language="+c.language)
 						subCount+=1
+					else:
+						self.message(B+"    + "+W+" Skipping subtitle.",2)
 				elif (self.pacvertFileExtensions == "m4v" and (c.codec == "pgssub" or c.codec == "dvdsub")):
 					#Convert to mov_text
 					newSub=self.convert_subtitle(c.index,c.language,c.codec,tools,options)
@@ -898,6 +950,8 @@ class PacvertMedia:
 						self.streamopt.append("-c:s:"+str(subCount)+" mov_text")
 						self.streamopt.append("-metadata:s:s:"+str(subCount)+" language="+c.language)
 						subCount+=1
+					else:
+						self.message(B+"    + "+W+" Skipping subtitle.",2)
 				else:
 					self.streammap.append("-map 0:"+str(c.index))
 					if self.pacvertFileExtensions == "mkv":
@@ -1301,9 +1355,11 @@ class PacvertMedia:
 
 		#Analyze output
 		output = options['outdir']+"/"+os.path.splitext(self.pacvertName)[0]+"."+self.pacvertFileExtensions
+		options['silent'] = True
 		outputf = PacvertMedia(output,self.config)
-		outputf.analyze(tools)
+		outputf.analyze(tools,options)
 		outputf.analyze_video(tools,options)
+		options['silent'] = False
 
 		# Restore cropping
 		self.config.set("VideoSettings","CROP",str(old_c))
@@ -1318,15 +1374,15 @@ class PacvertMedia:
 
 		# Proceed...
 		if self.config.getboolean('FileSettings','deletefile') and diff <= maxdiff:
-			self.message("Passed sanity check - "+O+"deleting"+W+" file"+W)
-			os.remove(self.path)
+			self.message(B+"    + "+W+"Passed sanity check - "+O+"deleting"+W+" file"+W)
+			os.remove(self.pacvertPath)
 		elif self.config.getboolean('FileSettings','deletefile') and diff > maxdiff:
-			self.message("Failed sanity check (max diff: "+str(maxdiff)+" | cur diff: "+str(diff)+") - keeping old & removing new file"+W,2)
+			self.message(B+"    + "+W+"Failed sanity check (max diff: "+str(maxdiff)+" | cur diff: "+str(diff)+") - keeping old & removing new file"+W,2)
 			os.remove(output)
 		elif not self.config.getboolean('FileSettings','deletefile') and diff <= maxdiff:
-			self.message("Passed sanity check - "+O+"keeping"+W+" file"+W)
+			self.message(B+"    + "+W+"Passed sanity check - "+O+"keeping"+W+" file"+W)
 		elif diff > maxdiff:
-			self.message("Failed sanity check (max diff: "+str(maxdiff)+" | cur diff: "+str(diff)+")  - removing "+O+"NEW"+W+" file"+W,2)
+			self.message(B+"    + "+W+"Failed sanity check (max diff: "+str(maxdiff)+" | cur diff: "+str(diff)+")  - removing "+O+"NEW"+W+" file"+W,2)
 			os.remove(output)
 			
 	
