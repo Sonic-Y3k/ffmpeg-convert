@@ -20,57 +20,63 @@ To download and execute pacvert, run the commands below:
 Usage:
 ------
 >
-    usage: pacvert3.py [-h] [--crf CRF] [--dca] [--ext {m4v,mkv}] [--nice NICE]
-                   [--nocrop] [--outdir DIRECTORY] [--rmfile] [--verbose]
-                   [--version]
-                   [--x264level {1,1b,1.1,1.2,1.3,2,2.1,2.2,3,3.1,3.2,4,4.1,4.2,5,5.1}]
-                   [--x264preset {ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow,placebo}]
-                   [--x264profile {baseline,main,high,high10,high422,high444}]
-                   [--x264tune {film,animation,grain,stillimage,psnr,ssim,fastdecode,zerolatency}]
+    usage: pacvert.py [-h] [--forcedts] [--forcex265] [--outdir OUTDIR]
+    
 >    
     optional arguments:
-      -h, --help
+      -h, --help       show this help message and exit
 >    
 >
     COMMAND:
-        --crf CRF             Change crf-video value to <float>.
-        --dca                 Forcing mkv audio codec to dts
-        --ext {m4v,mkv}       Change output extension.
-        --nice NICE           Change nice value.
-        --nocrop              Disable cropping
-        --outdir DIRECTORY    Change outdir to <directory>.
-        --rmfile              Remove original video.
-        --verbose             Enable verbose mode.
-        --version             Display version number.
-        --x264level {1,1b,1.1,1.2,1.3,2,2.1,2.2,3,3.1,3.2,4,4.1,4.2,5,5.1}
-                        Change x264-level
-        --x264preset {ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow,placebo}
-                        Change x264-preset
-        --x264profile {baseline,main,high,high10,high422,high444}
-                        Change x264-profile
-        --x264tune {film,animation,grain,stillimage,psnr,ssim,fastdecode,zerolatency}
-                        Change x264-tune
+        --forcedts       Force use of dts-codec
+        --forcex265      Force use of x265-encoder
+        --outdir OUTDIR  Output directory
 
-Default Options
+
+Default pacvert.conf:
+------
+>
+
+    [ConfigVersion]
+    version = 4.0
+
+    [FileSettings]
+    deletefile = True
+    fileformat = 
+    searchextensions = avi,flv,mov,mp4,mpeg,mpg,ogv,wmv,m2ts,rmvb,rm,3gp,m4v,3g2,mj2,asf,divx,vob,mkv
+    maxdiff = 50
+
+    [VideoSettings]
+    crf = 18.0
+    crop = True
+    x264level = 4.1
+    x264preset = slow
+    x264profile = high
+    x264tune = film
+    x265preset = slow
+    x265tune = 
+    x265params = 
+    x265crf = 23.0
+
+    [AudioSettings]
+    defaultaudiocodec = 
+    aaclib = aac -strict -2
+    ac3lib = ac3
+    dtslib = dca -strict -2
+
+Note
 ---------------
-* crf = 18
-* ext = m4v for files < 5GB and mkv for files > 5gb
-* nice = 15
-* x264level = 4.1
-* x264preset = slow
-* x264profile = high
-* x264tune = film
-
-Note: By creating m4v-files the audio stream layout will look like this:
-* map 0:1 to 0:1 AAC
-* map 0:1 to 0:2 AC3
-* map 0:2 to 0:3 AAC
-* map 0:2 to 0:4 AC3
+* If no fileformat (m4v / mkv) is specified, pacvert will chose m5v for files < 5GB and mkv for files > 5gb 
+* m4v audio layout:
+    * map 0:1 to 0:1 AAC
+    * map 0:1 to 0:2 AC3
+    * map 0:2 to 0:3 AAC
+    * map 0:2 to 0:4 AC3
 
 Required Programs
 -----------------
-* [python2](https://www.python.org/) - Pacvert is a Python script and requires Python to run.
-* [python2-progressbar2](https://pypi.python.org/pypi/progressbar2) - Text progress bar library for Python.
+* [python](https://www.python.org/) - Pacvert is a Python script and requires Python to run.
+* [python-progressbar2](https://pypi.python.org/pypi/progressbar2) - Text progress bar library for Python.
 * [ffmpeg](https://www.ffmpeg.org/) - For converting
 * [mplayer](www.mplayerhq.hu/) - For calculating the crop area
 * [mkvextract](https://www.bunkus.org/videotools/mkvtoolnix/) - Part of the mkvtoolnix suite
