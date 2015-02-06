@@ -195,7 +195,7 @@ class Pacvert():
 				conv = element.convert(self.tools,self.options,30)
 				frames = element.frames
 				
-				widgets = [G+' [',AnimatedMarker(),'] ',B+'    +'+W,Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()]
+				widgets = [G+' [',AnimatedMarker(),'] ',B+'    + '+W,Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()]
 			
 				pbar = ProgressBar(widgets=widgets,maxval=element.frames)
 				pbar.start()
@@ -690,18 +690,20 @@ class PacvertMedia:
 		for b in proc_mediainfo:
 			if b.split('=')[0] == "crf":
 				crf = float(b.split('=')[1].replace(',','.'))
-				self.message(B+"    + "+W+"-source CRF: "+str(crf))
+				if not options['silent']:
+					self.message(B+"    + "+W+"-source CRF: "+str(crf))
 		
 		for c in self.streams:
 			#Videostream ignore png streams!
-			if c.type == "video" and c.codec != "png":
+			if c.type == "video" and c.codec != "png" and c.codec != "mjpeg":
 				if c.duration < 1:
 					self.frames = round(self.format.duration*c.video_fps)+1
 				else:
 					self.frames = round(c.duration*c.video_fps)+1
 				
 				self.streammap.append("-map 0:"+str(c.index))
-				self.message(B+"    + "+W+"-map 0:"+str(c.index))
+				if not options['silent']:
+					self.message(B+"    + "+W+"-map 0:"+str(c.index))
 				
 				tempIdx = len(self.streamopt)
 				
@@ -796,10 +798,7 @@ class PacvertMedia:
 				
 		for c in self.streams:	
 			if c.type == "audio":
-				self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
 				tempIdx = len(self.streamopt)
-				self.streammap.append("-map 0:"+str(c.index))
-				self.message(B+"    + "+W+"-map 0:"+str(c.index))
 				defaultAudioCodec = options['config'].get("AudioSettings","DefaultAudioCodec")
 				
 				defaultAudioCodec.replace(" ","")
@@ -809,40 +808,71 @@ class PacvertMedia:
 				
 				if self.pacvertFileExtensions == "mkv" and defaultAudioCodec == "":
 					#Not forcing any audio codec
+					
+					doubleLang = False
+					for d in self.streams:
+						if d.type == "audio" and ((c.codec == "ac3" and d.codec == "aac") or (c.codec == "aac" and d.codec == "ac3")) and c.language == d.language:
+							doubleLang = True
+					
 					if (c.codec == "dca" or c.codec == "truehd" or c.codec == "ac3"):
+						self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
+						self.streammap.append("-map 0:"+str(c.index))
+						self.message(B+"    + "+W+"-map 0:"+str(c.index))
 						self.streamopt.append("-c:a:"+str(audCount)+" copy")
 						self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
 						audCount+=1
-					else:
+					elif (c.codec != "dca" and c.codec != "truehd" and c.codec != "ac3") and doubleLang == False:
+						self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
+						self.streammap.append("-map 0:"+str(c.index))
+						self.message(B+"    + "+W+"-map 0:"+str(c.index))
 						self.streamopt.append("-c:a:"+str(audCount)+" "+options['config'].get("AudioSettings","ac3lib"))
 						self.streamopt.append("-b:a:"+str(audCount)+" 640k")
 						self.streamopt.append("-ac:"+str(audCount)+" "+str(min(max(2,c.audio_channels),6)))
 						self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
 						audCount+=1
+					for idx in range(tempIdx,len(self.streamopt)):				
+						self.message(B+"    + "+W+self.streamopt[idx])
 				elif self.pacvertFileExtensions == "mkv" and defaultAudioCodec != "":
 					#Forcing an audio codec
-					if defaultAudioCodec == "ac3" and c.codec != "ac3":
+					
+					doubleLang = False
+					for d in self.streams:
+						if d.type == "audio" and ((c.codec == "ac3" and d.codec == "aac") or (c.codec == "aac" and d.codec == "ac3")) and c.language == d.language:
+							doubleLang = True
+					
+					if defaultAudioCodec == "ac3" and c.codec != "ac3" and doubleLang == False:
+						self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
+						self.streammap.append("-map 0:"+str(c.index))
+						self.message(B+"    + "+W+"-map 0:"+str(c.index))
 						self.streamopt.append("-c:a:"+str(audCount)+" "+options['config'].get("AudioSettings","ac3lib"))
 						self.streamopt.append("-b:a:"+str(audCount)+" 640k")
 						self.streamopt.append("-ac:"+str(audCount)+" "+str(min(max(2,c.audio_channels),6)))
 						self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
 						audCount+=1
-					elif defaultAudioCodec == "dts" and c.codec != "dca":
+					elif defaultAudioCodec == "dts" and c.codec != "dca" and doubleLang == False:
+						self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
+						self.streammap.append("-map 0:"+str(c.index))
+						self.message(B+"    + "+W+"-map 0:"+str(c.index))
 						self.streamopt.append("-c:a:"+str(audCount)+" "+options['config'].get("AudioSettings","dtslib"))
 						self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
 						audCount+=1
 					elif (defaultAudioCodec == "ac3" and c.codec == "ac3") or (defaultAudioCodec == "dts" and c.codec == "dca"):
+						self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
+						self.streammap.append("-map 0:"+str(c.index))
+						self.message(B+"    + "+W+"-map 0:"+str(c.index))
 						self.streamopt.append("-c:a:"+str(audCount)+" copy")
 						self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
 						audCount+=1
 					else:
 						raise ValueError("Invalid DefaultAudioCodec in AudioSettings in config file.")
+					for idx in range(tempIdx,len(self.streamopt)):				
+						self.message(B+"    + "+W+self.streamopt[idx])
 				elif (self.pacvertFileExtensions == "m4v") and (c.codec == "ac3" or c.codec == "aac"):
 					doubleLang = 0
 					for d in self.streams:
 						if d.type == "audio" and ((c.codec == "ac3" and d.codec == "aac") or (c.codec == "aac" and d.codec == "ac3")) and c.language == d.language:
 							doubleLang = 1
-					
+					self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
 					self.streammap.append("-map 0:"+str(c.index))
 					self.message(B+"    + "+W+"-map 0:"+str(c.index))
 					
@@ -1374,15 +1404,15 @@ class PacvertMedia:
 
 		# Proceed...
 		if self.config.getboolean('FileSettings','deletefile') and diff <= maxdiff:
-			self.message(B+"    + "+W+"Passed sanity check - "+O+"deleting"+W+" file"+W)
-			os.remove(self.pacvertPath)
+			self.message(B+"    + "+W+"Sanity Check:\t"+G+"Passed"+W+". ("+O+"deleting"+W+" file)"+W)
+			os.remove(self.pacvertFile)
 		elif self.config.getboolean('FileSettings','deletefile') and diff > maxdiff:
-			self.message(B+"    + "+W+"Failed sanity check (max diff: "+str(maxdiff)+" | cur diff: "+str(diff)+") - keeping old & removing new file"+W,2)
+			self.message(B+"    + "+W+"Sanity check:\t"+R+"Failed"+W+". (max diff: "+str(maxdiff)+" | cur diff: "+str(diff)+") - keeping old & removing "+O+"NEW"+W+" file"+W,2)
 			os.remove(output)
 		elif not self.config.getboolean('FileSettings','deletefile') and diff <= maxdiff:
-			self.message(B+"    + "+W+"Passed sanity check - "+O+"keeping"+W+" file"+W)
+			self.message(B+"    + "+W+"Sanity Check:\t"+G+"Passed"+W+". ("+O+"keeping"+W+" file"+W)
 		elif diff > maxdiff:
-			self.message(B+"    + "+W+"Failed sanity check (max diff: "+str(maxdiff)+" | cur diff: "+str(diff)+")  - removing "+O+"NEW"+W+" file"+W,2)
+			self.message(B+"    + "+W+"Sanity Check:\t"+R+"Failed"+W+". (max diff: "+str(maxdiff)+" | cur diff: "+str(diff)+")  - removing "+O+"NEW"+W+" file"+W,2)
 			os.remove(output)
 			
 	
