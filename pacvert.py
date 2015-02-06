@@ -112,7 +112,7 @@ class Pacvert():
 		self.banner()
 	
 		#Check for Unix Systems
-		if self.getPlatfrom() != "Linux" and self.getPlatfrom() != "Darwin":
+		if self.getPlatform() != "Linux" and self.getPlatform() != "Darwin":
 			self.message("Only Linux/Darwin is currently supported.",2)
 			self.exit_gracefully(1)
 
@@ -394,7 +394,7 @@ class Pacvert():
 			#Audio Settings
 			self.config.add_section("AudioSettings")
 			self.config.set("AudioSettings","DefaultAudioCodec","")
-			if self.getPlatfrom() == "Linux":
+			if self.getPlatform() == "Linux":
 				self.config.set("AudioSettings","AACLib","aac -strict -2")
 			elif self.getPlatform() == "Darwin":
 				self.config.set("AudioSettings","AACLib","libfaac")
@@ -417,12 +417,12 @@ class Pacvert():
 		"""
 			Returns the OS-Dependant config filepath
 		"""
-		if self.getPlatfrom() == "Linux":
+		if self.getPlatform() == "Linux":
 			return "/etc/pacvert.conf"
-		elif self.getPlatfrom() == "Darwin":
+		elif self.getPlatform() == "Darwin":
 			return "/usr/local/etc/pacvert.conf"
 	
-	def getPlatfrom(self):
+	def getPlatform(self):
 		"""
 			Returns the platform this script is runing on
 		"""
@@ -1472,15 +1472,13 @@ class PacvertMediaStreamInfo(object):
 		self.sub_default = None
 		self.metadata = {}
 
-	@staticmethod
-	def parse_float(val, default=0.0):
+	def parse_float(self, val, default=0.0):
 		try:
 			return float(val)
 		except:
 			return default
 
-	@staticmethod
-	def parse_int(val, default=0):
+	def parse_int(self, val, default=0):
 		try:
 			return int(val)
 		except:
@@ -1628,13 +1626,13 @@ class PacvertMediaFormatInfo(object):
 		elif key == 'format_long_name':
 			self.fullname = val
 		elif key == 'bit_rate':
-			self.bitrate = PacvertMediaFormatInfo.parse_float(val, None)
+			self.bitrate = self.parse_float(val, None)
 		elif key == 'duration':
-			self.duration = PacvertMediaFormatInfo.parse_float(val, None)
+			self.duration = self.parse_float(val, None)
 		elif key == 'size':
-			self.size = PacvertMediaFormatInfo.parse_float(val, None)
+			self.size = self.parse_float(val, None)
 
-	def parse_float(val, default=0.0):
+	def parse_float(self, val, default=0.0):
 		try:
 			return float(val)
 		except:
