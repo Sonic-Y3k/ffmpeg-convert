@@ -1028,7 +1028,7 @@ class PacvertMedia:
 				if not ret:
 					break
 					
-				ret = ret.decode("ISO-8859-1")
+				ret = ret.decode("UTF-8").encode('ascii', 'ignore')
 				total_output += ret
 				buf += ret
 				if "\r" in buf:
@@ -1088,7 +1088,7 @@ class PacvertMedia:
 			if not ret:
 				break
 
-			ret = ret.decode("ISO-8859-1")
+			ret = ret.decode("UTF-8").encode('ascii', 'ignore')
 			total_output += str(ret)
 			buf += str(ret)
 			if "\n" in buf:
@@ -1156,7 +1156,7 @@ class PacvertMedia:
 			if not ret:
 				break
 
-			ret = ret.decode("ISO-8859-1")
+			ret = ret.decode("UTF-8").encode('ascii', 'ignore')
 			total_output += ret
 			buf += ret
 
@@ -1341,7 +1341,7 @@ class PacvertMedia:
 			if not ret:
 				break
 			
-			ret = ret.decode("ISO-8859-1")
+			ret = ret.decode("UTF-8").encode('ascii', 'ignore')
 			total_output += ret
 			buf += str(ret)
 			if "\r" in buf:
