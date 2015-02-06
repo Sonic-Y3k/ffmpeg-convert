@@ -643,7 +643,7 @@ class PacvertMedia:
 		cmd = [tools['ffprobe'],'-show_format','-show_streams',self.pacvertFile]
 		proc_ffprobe = Popen(cmd, shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
 		stdout_data, _ = proc_ffprobe.communicate()
-		proc_ffprobe = stdout_data.decode("UTF-8")
+		proc_ffprobe = stdout_data.decode("UTF-8").encode('ascii', 'ignore')
 		
 		in_format = False
 		current_stream = None
