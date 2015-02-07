@@ -284,16 +284,6 @@ class Pacvert():
 			self.message("Required program not found: "+C+"ffprobe"+W+".",2)
 			self.exit_gracefully(1)
 
-		#python
-		self.tools["python"] = self.program_exists("python")
-		if self.tools["python"]:
-			proc = Popen(["python","-V"], stdout=PIPE, stderr=PIPE,universal_newlines=True)
-			txt = proc.communicate()[0].strip().split(" ")[1]
-			self.message(O+"  * "+W+"Python:\t"+txt)
-		else:
-			self.message("Required program not found: "+C+"python"+W+".",2)
-			self.exit_gracefully(1)
-
 		#mplayer
 		self.tools["mplayer"] = self.program_exists("mplayer")
 		if self.tools["mplayer"]:
