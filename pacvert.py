@@ -625,7 +625,6 @@ class PacvertMedia:
 		self.streammap = []
 		self.streamopt = []
 		self.addFiles = []
-		self.frames = 1
 
 		self.pacvertFileExtensions = self.config.get("FileSettings","FileFormat") \
 		if self.config.get("FileSettings","FileFormat") != "" \
@@ -644,18 +643,12 @@ class PacvertMedia:
 		cmd = [tools['ffprobe'],'-show_format','-show_streams',self.pacvertFile]
 		proc_ffprobe = Popen(cmd, shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
 		stdout_data, _ = proc_ffprobe.communicate()
-		proc_ffprobe = str(stdout_data.decode("UTF-8").encode('ascii', 'ignore'))
+		proc_ffprobe = str(stdout_data.decode("UTF-8").encode('ascii', 'ignore')).replace("\\n","\n")
 
 		in_format = False
 		current_stream = None
 
-		# Damn you, python2 vs python3
-		splitted = proc_ffprobe.split("\n")
-		if len(splitted) == 1:
-			#probably python3
-			splitted = proc_ffprobe.split("\\n")
-
-		for line in splitted:
+		for line in proc_ffprobe.split("\n"):
 			if "[STREAM]" in line:
 				current_stream = PacvertMediaStreamInfo()
 			elif "[/STREAM]" in line:
@@ -1032,7 +1025,7 @@ class PacvertMedia:
 				if not ret:
 					break
 					
-				ret = ret.decode("UTF-8").encode('ascii', 'ignore')
+				ret = ret.decode("UTF-8").encode('ascii', 'ignore').replace("\\r","\r").replace("\\n","\n")
 				total_output += ret
 				buf += ret
 				if "\r" in buf:
@@ -1092,9 +1085,9 @@ class PacvertMedia:
 			if not ret:
 				break
 
-			ret = ret.decode("UTF-8").encode('ascii', 'ignore')
-			total_output += str(ret)
-			buf += str(ret)
+			ret = str(ret.decode("UTF-8").encode('ascii', 'ignore')).replace("\\n","\n")
+			total_output += ret
+			buf += ret
 			if "\n" in buf:
 				line,buf = buf.split("\n", 1)
 				tmp = pat.findall(line)
@@ -1160,7 +1153,7 @@ class PacvertMedia:
 			if not ret:
 				break
 
-			ret = ret.decode("UTF-8").encode('ascii', 'ignore')
+			ret = str(ret.decode("UTF-8").encode('ascii', 'ignore')).replace("\\n","\n")
 			total_output += ret
 			buf += ret
 
@@ -1345,7 +1338,7 @@ class PacvertMedia:
 			if not ret:
 				break
 			
-			ret = str(ret.decode("UTF-8").encode('ascii', 'ignore'))
+			ret = str(ret.decode("UTF-8")).replace("\\n","\n").replace("\\r","\r")
 			total_output += ret
 			buf += ret
 			if "\r" in buf:
