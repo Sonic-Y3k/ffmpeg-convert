@@ -284,6 +284,16 @@ class Pacvert():
 			self.message("Required program not found: "+C+"ffprobe"+W+".",2)
 			self.exit_gracefully(1)
 
+		#python
+		self.tools["python"] = self.program_exists("python")
+		if self.tools["python"]:
+			proc = Popen(["python","-V"], stdout=PIPE, stderr=PIPE,universal_newlines=True)
+			txt = proc.communicate()[0].strip().split(" ")[1]
+			self.message(O+"  * "+W+"Python:\t"+txt)
+		else:
+			self.message("Required program not found: "+C+"python"+W+".",2)
+			self.exit_gracefully(1)
+
 		#mplayer
 		self.tools["mplayer"] = self.program_exists("mplayer")
 		if self.tools["mplayer"]:
@@ -625,6 +635,7 @@ class PacvertMedia:
 		self.streammap = []
 		self.streamopt = []
 		self.addFiles = []
+		self.frames = 1
 
 		self.pacvertFileExtensions = self.config.get("FileSettings","FileFormat") \
 		if self.config.get("FileSettings","FileFormat") != "" \
@@ -643,34 +654,37 @@ class PacvertMedia:
 		cmd = [tools['ffprobe'],'-show_format','-show_streams',self.pacvertFile]
 		proc_ffprobe = Popen(cmd, shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
 		stdout_data, _ = proc_ffprobe.communicate()
-		proc_ffprobe = stdout_data.decode("UTF-8").encode('ascii', 'ignore')
-		
+		proc_ffprobe = str(stdout_data.decode("UTF-8").encode('ascii', 'ignore'))
+
 		in_format = False
 		current_stream = None
 
-		for line in str(proc_ffprobe).split("\n"):
-			line = line.strip()
-			if line == "":
-				continue
-			elif line == '[STREAM]':
+		# Damn you, python2 vs python3
+		splitted = proc_ffprobe.split("\n")
+		if len(splitted) == 1:
+			#probably python3
+			splitted = proc_ffprobe.split("\\n")
+
+		for line in splitted:
+			if "[STREAM]" in line:
 				current_stream = PacvertMediaStreamInfo()
-			elif line == '[/STREAM]':
+			elif "[/STREAM]" in line:
 				if current_stream.type:
 					self.streams.append(current_stream)
 				current_stream = None
-			elif line == '[FORMAT]':
+			elif "[FORMAT]" in line:
 				in_format = True
-			elif line == '[/FORMAT]':
+			elif "[/FORMAT]" in line:
 				in_format = False
-			elif '=' in line:
+			elif "=" in line:
 				k, v = line.split('=', 1)
 				k = k.strip()
 				v = v.strip()
 				if current_stream:
-					current_stream.parse_ffprobe(k, v)
+					current_stream.parse_ffprobe(current_stream, k, v)
 				elif in_format:
 					self.format.parse_ffprobe(k, v)
-
+			
 	def analyze_video(self, tools, options):
 		"""
 			analyze gathered streams for
@@ -692,7 +706,7 @@ class PacvertMedia:
 				crf = float(b.split('=')[1].replace(',','.'))
 				if not options['silent']:
 					self.message(B+"    + "+W+"-source CRF: "+str(crf))
-		
+
 		for c in self.streams:
 			#Videostream ignore png streams!
 			if c.type == "video" and c.codec != "png" and c.codec != "mjpeg":
@@ -1341,9 +1355,9 @@ class PacvertMedia:
 			if not ret:
 				break
 			
-			ret = ret.decode("UTF-8").encode('ascii', 'ignore')
+			ret = str(ret.decode("UTF-8").encode('ascii', 'ignore'))
 			total_output += ret
-			buf += str(ret)
+			buf += ret
 			if "\r" in buf:
 				line,buf = buf.split("\r", 1)
 
@@ -1472,18 +1486,21 @@ class PacvertMediaStreamInfo(object):
 		self.sub_default = None
 		self.metadata = {}
 
-	def parse_float(self, val, default=0.0):
+	@staticmethod
+	def parse_float(val, default=0.0):
 		try:
 			return float(val)
 		except:
 			return default
 
-	def parse_int(self, val, default=0):
+	@staticmethod
+	def parse_int(val, default=0):
 		try:
 			return int(val)
 		except:
 			return default
 
+	@staticmethod
 	def parse_ffprobe(self, key, val):
 		"""
 			Parse raw ffprobe output (key=value).
@@ -1626,13 +1643,14 @@ class PacvertMediaFormatInfo(object):
 		elif key == 'format_long_name':
 			self.fullname = val
 		elif key == 'bit_rate':
-			self.bitrate = self.parse_float(val, None)
+			self.bitrate = PacvertMediaFormatInfo.parse_float(val, None)
 		elif key == 'duration':
-			self.duration = self.parse_float(val, None)
+			self.duration = PacvertMediaFormatInfo.parse_float(val, None)
 		elif key == 'size':
-			self.size = self.parse_float(val, None)
-
-	def parse_float(self, val, default=0.0):
+			self.size = PacvertMediaFormatInfo.parse_float(val, None)
+	
+	@staticmethod
+	def parse_float(val, default=0.0):
 		try:
 			return float(val)
 		except:
