@@ -305,16 +305,6 @@ class Pacvert():
             self.message("Required program not found: "+C+"ffprobe"+W+".",2)
             self.exit_gracefully(1)
 
-        #mplayer
-        self.tools["mplayer"] = self.program_exists("mplayer")
-        if self.tools["mplayer"]:
-            proc = Popen(["mplayer"], stdout=PIPE, stderr=PIPE,universal_newlines=True)
-            txt = proc.communicate()[0].strip().split(" ")[1]
-            self.message(O+"  * "+W+"MPlayer:\t"+txt)
-        else:
-            self.message("Required program not found: "+C+"mplayer"+W+".",2)
-            self.exit_gracefully(1)
-
         #mkvextract
         self.tools["mkvextract"] = self.program_exists("mkvextract")
         if self.tools["mkvextract"]:
@@ -766,14 +756,33 @@ class PacvertMedia:
     def analyze_crop(self,tools):
         from subprocess import STDOUT
         #ffmpeg -ss 00:05:00 -i 'file' -t 00:00:05 -vf "cropdetect=24:16:0" -f null - 2>&1 |awk '/crop/ {print $NF}' |tail -1
-        cmd = [tools['ffmpeg'],"-ss",str(round(self.format.duration/2)),"-i",self.pacvertFile,"-t","00:00:05","-vf","cropdetect=24:16:0","-f", "null", "-"]
-        proc_mplayer = check_output(cmd, stderr=STDOUT)
-        crop = ""
-        for c in str(proc_mplayer.decode("ISO-8859-1")).split('\n'):
-            if "crop=" in c:
-                crop = c.split(" ")[13]
-                
-        return crop.replace("crop=","") 
+
+        count = 5
+        
+        if self.format.duration <= 150:
+            count = 2
+        
+        crop = [0,0,0,0]
+        pbar = ProgressBar(widgets=[G+' [',AnimatedMarker(),'] '+B+'    + '+W+'Analyzing cropping rectangle.\t']).start()
+        for a in range(1,count):
+            cmd = [tools['ffmpeg'],"-ss",str(a*30),"-i",self.pacvertFile,"-t","00:00:05","-vf","cropdetect=24:16:0","-f", "null", "-"]
+            proc_ffmpeg = check_output(cmd, stderr=STDOUT)
+            pbar.update(a)
+            for c in str(proc_ffmpeg.decode("ISO-8859-1")).split('\n'):
+                if "crop=" in c:
+                    temp_crop = c.split(" ")[13].replace("crop=","").split(":")
+                    try:
+                        if int(temp_crop[0]) > crop[0]:
+                            crop[0] = int(temp_crop[0])
+                            crop[2] = int(temp_crop[2])
+                    
+                        if int(temp_crop[1]) > crop[1]:
+                            crop[1] = int(temp_crop[1])
+                            crop[3] = int(temp_crop[3])
+                    except ValueError:
+                        """"""
+        pbar.finish()
+        return str(crop[0])+":"+str(crop[1])+":"+str(crop[2])+":"+str(crop[3])
              
     def analyze_audio(self, tools, options):
         """
@@ -909,6 +918,7 @@ class PacvertMedia:
                         self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
                         audCount+=1
                 else:
+                    self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
                     self.streamopt.append("-c:a:"+str(audCount)+" "+options['config'].get("AudioSettings","aaclib"))
                     self.streamopt.append("-b:a:"+str(audCount)+" 320k")
                     self.streamopt.append("-ac:"+str(audCount+1)+" 2")
@@ -1315,7 +1325,7 @@ class PacvertMedia:
         yielded = False
         buf = ""
         total_output = ""
-        pat = re.compile(r'frame=\s*([0-9]+)\s*fps=\s*([0-9]+)')
+        pat = re.compile(r'frame=\s*(-?[0-9]+)\s*fps=\s*(-?[0-9]+)')
         while True:
             if timeout:
                 signal.alarm(timeout)
@@ -1328,7 +1338,10 @@ class PacvertMedia:
             if not ret:
                 break
             
-            ret = str(ret.decode("UTF-8")).replace("\\n","\n").replace("\\r","\r")
+            try:
+                ret = str(ret.decode("UTF-8")).replace("\\n","\n").replace("\\r","\r")
+            except UnicodeDecodeError:
+                ret = str("frame=\t-1\tfps=\t-1")
             total_output += ret
             buf += ret
             if "\r" in buf:
