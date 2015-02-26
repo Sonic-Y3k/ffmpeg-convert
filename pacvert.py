@@ -17,7 +17,7 @@
 ################################
 
 # Version
-VERSION = 4.0;
+VERSION = 4.1;
 DATE = "29.01.2015";
 
 # Console colors
@@ -467,7 +467,11 @@ class Pacvert():
         """
             Loads the Config-File
         """
-        self.config = configparser.ConfigParser();
+        try:
+            if not self.config:
+                """"""
+        except AttributeError:
+            self.config = configparser.ConfigParser();
         if os.path.exists(self.getConfigPath()):
             #Config exists, very good!
             self.config.read(self.getConfigPath())
@@ -489,38 +493,61 @@ class Pacvert():
             #Config does not exists... we need to create.
             
             #Set Config Version
-            self.config.add_section("ConfigVersion")
+            if not self.config.has_section("ConfigVersion"):
+                self.config.add_section("ConfigVersion")
             self.config.set("ConfigVersion","Version",str(VERSION))
 
             #General File Settings
-            self.config.add_section("FileSettings")
-            self.config.set("FileSettings", "DeleteFile","True")
-            self.config.set("FileSettings", "FileFormat", "")
-            self.config.set("FileSettings", "SearchExtensions", "avi,flv,mov,mp4,mpeg,mpg,ogv,wmv,m2ts,rmvb,rm,3gp,m4v,3g2,mj2,asf,divx,vob,mkv")
-            self.config.set("FileSettings", "MaxDiff", "50")
+            if not self.config.has_section("FileSettings"):
+                self.config.add_section("FileSettings")
+            if not self.config.has_option("FileSettings","DeleteFile"):
+                self.config.set("FileSettings", "DeleteFile", "True")
+            if not self.config.has_option("FileSettings","FileFormat"):
+                self.config.set("FileSettings", "FileFormat", "")
+            if not self.config.has_option("FileSettings","SearchExtensions"):
+                self.config.set("FileSettings", "SearchExtensions", "avi,flv,mov,mp4,mpeg,mpg,ogv,wmv,m2ts,rmvb,rm,3gp,m4v,3g2,mj2,asf,divx,vob,mkv")
+            if not self.config.has_option("FileSettings","MaxDiff"):
+                self.config.set("FileSettings", "MaxDiff", "50")
             
             #Video Settings
-            self.config.add_section("VideoSettings")
-            self.config.set("VideoSettings","CRF","18.0")
-            self.config.set("VideoSettings","CROP", "True")
-            self.config.set("VideoSettings","X264Level","4.1")
-            self.config.set("VideoSettings","X264Preset","slow")
-            self.config.set("VideoSettings","X264Profile","high")
-            self.config.set("VideoSettings","X264Tune","film")
-            self.config.set("VideoSettings","X265Preset","slow")
-            self.config.set("VideoSettings","X265Tune","")
-            self.config.set("VideoSettings","X265Params","")
-            self.config.set("VideoSettings","X265CRF","23.0")
+            if not self.config.has_section("VideoSettings"):
+                self.config.add_section("VideoSettings")
+            if not self.config.has_option("VideoSettings","CRF"):
+                self.config.set("VideoSettings","CRF","18.0")
+            if not self.config.has_option("VideoSettings","CROP"):
+                self.config.set("VideoSettings","CROP", "True")
+            if not self.config.has_option("VideoSettings","X264Level"):
+                self.config.set("VideoSettings","X264Level","4.1")
+            if not self.config.has_option("VideoSettings","X264Preset"):
+                self.config.set("VideoSettings","X264Preset","slow")
+            if not self.config.has_option("VideoSettings","X264Profile"):
+                self.config.set("VideoSettings","X264Profile","high")
+            if not self.config.has_option("VideoSettings","X264Tune"):
+                self.config.set("VideoSettings","X264Tune","film")
+            if not self.config.has_option("VideoSettings","X265Preset"):
+                self.config.set("VideoSettings","X265Preset","slow")
+            if not self.config.has_option("VideoSettings","X265Tune"):
+                self.config.set("VideoSettings","X265Tune","")
+            if not self.config.has_option("VideoSettings","X265Params"):
+                self.config.set("VideoSettings","X265Params","")
+            if not self.config.has_option("VideoSettings","X265CRF"):
+                self.config.set("VideoSettings","X265CRF","23.0")
             
             #Audio Settings
-            self.config.add_section("AudioSettings")
-            self.config.set("AudioSettings","DefaultAudioCodec","")
+            if not self.config.has_section("AudioSettings"):
+                self.config.add_section("AudioSettings")
+            if not self.config.has_option("AudioSettings","DefaultAudioCodec"):
+                self.config.set("AudioSettings","DefaultAudioCodec","")
             if self.getPlatform() == "Linux":
-                self.config.set("AudioSettings","AACLib","aac -strict -2")
+                if not self.config.has_option("AudioSettings","AACLib"):
+                    self.config.set("AudioSettings","AACLib","aac -strict -2")
             elif self.getPlatform() == "Darwin":
-                self.config.set("AudioSettings","AACLib","libvo_aacenc")
-            self.config.set("AudioSettings","AC3Lib","ac3")
-            self.config.set("AudioSettings","DTSLib","dca -strict -2")
+                if not self.config.has_option("AudioSettings","AACLib"):
+                    self.config.set("AudioSettings","AACLib","libvo_aacenc")
+            if not self.config.has_option("AudioSettings","AC3Lib"):
+                self.config.set("AudioSettings","AC3Lib","ac3")
+            if not self.config.has_option("AudioSettings","DTSLib"):
+                self.config.set("AudioSettings","DTSLib","dca -strict -2")
             
             #Write config to file
             try:
