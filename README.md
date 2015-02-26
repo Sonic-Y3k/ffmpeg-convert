@@ -20,7 +20,7 @@ To download and execute pacvert, run the commands below:
 Usage:
 ------
 >
-    usage: pacvert.py [-h] [--forcedts] [--forcex265] [--outdir OUTDIR]
+    usage: pacvert.py [-h] [--forcedts] [--forcex265] [--outdir OUTDIR] [--threads THREADS]
     
 >    
     optional arguments:
@@ -31,6 +31,7 @@ Usage:
         --forcedts       Force use of dts-codec
         --forcex265      Force use of x265-encoder
         --outdir OUTDIR  Output directory
+        --threads THREADS Number of threads
 
 
 Default pacvert.conf:
