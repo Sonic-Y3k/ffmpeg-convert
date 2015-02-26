@@ -18,7 +18,7 @@
 
 # Version
 VERSION = 4.1;
-DATE = "29.01.2015";
+DATE = "26.02.2015";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
