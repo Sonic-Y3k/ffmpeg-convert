@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.1;
-DATE = "26.02.2015";
+VERSION = 4.2;
+DATE = "03.03.2015";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -486,6 +486,7 @@ class Pacvert():
                     os.remove(self.getConfigPath())
                 except PermissionError:
                     self.message("Can't open config file \""+O+self.getConfigPath()+W+"\". Permission Denied.", 2)
+                    self.exit_gracefully(1)
 
                 #Recreate configuration file
                 self.loadConfigFile()				
@@ -1106,7 +1107,7 @@ class PacvertMedia:
                     self.streamopt.append("-c:s:"+str(subCount)+" copy")
                     self.streamopt.append("-metadata:s:s:"+str(subCount)+" language="+c.language)
                     subCount+=1
-                elif (self.pacvertFileExtensions == "mkv" and (c.codec == "pgssub" or c.codec == "dvdsub")):
+                elif (self.pacvertFileExtensions == "mkv" and c.codec in ["pgssub","dvdsub"]):
                     #Convert to SRT
                     newSub=self.convert_subtitle(c.index,c.language,c.codec,tools,options)
                     if newSub != "":
@@ -1117,7 +1118,7 @@ class PacvertMedia:
                         subCount+=1
                     else:
                         self.message(B+"    + "+W+" Skipping subtitle.",2)
-                elif (self.pacvertFileExtensions == "m4v" and (c.codec == "pgssub" or c.codec == "dvdsub")):
+                elif (self.pacvertFileExtensions == "m4v" and c.codec in ["pgssub","dvdsub"]):
                     #Convert to mov_text
                     newSub=self.convert_subtitle(c.index,c.language,c.codec,tools,options)
                     if newSub != "":
@@ -1128,16 +1129,16 @@ class PacvertMedia:
                     else:
                         self.message(B+"    + "+W+" Skipping subtitle.",2)
                 else:
-                    self.streammap.append("-map 0:"+str(c.index))
-                    if self.pacvertFileExtensions == "mkv":
-                        self.streamopt.append("-c:s:"+str(subCount)+" srt")
-                        self.streamopt.append("-metadata:s:s:"+str(subCount)+" language="+c.language)
-                        subCount+=1
-                    else:
-                        self.streamopt.append("-c:s:"+str(subCount)+" mov_text")
-                        self.streamopt.append("-metadata:s:s:"+str(subCount)+" language="+c.language)
-                        subCount+=1
-                
+                    if c.codec not in ["dvb_teletext","dvbsub"]:
+                        self.streammap.append("-map 0:"+str(c.index))
+                        if self.pacvertFileExtensions == "mkv":
+                            self.streamopt.append("-c:s:"+str(subCount)+" srt")
+                            self.streamopt.append("-metadata:s:s:"+str(subCount)+" language="+c.language)
+                            subCount+=1
+                        else:
+                            self.streamopt.append("-c:s:"+str(subCount)+" mov_text")
+                            self.streamopt.append("-metadata:s:s:"+str(subCount)+" language="+c.language)
+                            subCount+=1
                 for idx in range(tempIdx,len(self.streamopt)):
                     self.message(B+"    + "+W+self.streamopt[idx])
     
