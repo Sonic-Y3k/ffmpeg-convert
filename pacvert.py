@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.2;
-DATE = "03.03.2015";
+VERSION = 4.3;
+DATE = "20.03.2015";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -770,7 +770,7 @@ class Pacvert():
         """
         from shutil import rmtree
         if os.path.exists(self.options['temp']):
-            rmtree(self.options['temp'])
+            """"""#rmtree(self.options['temp'])
         print (R+" [!]"+W+" quitting.")
         exit(code)
         
@@ -1342,6 +1342,8 @@ class PacvertMedia:
         """
         tempFileName=options['temp']+os.path.splitext(self.pacvertName)[0]+"."+str(index)
         tempFileName = tempFileName.replace(" ","_")
+        tempFileName = tempFileName.replace("\"","_")
+        tempFileName = tempFileName.replace("\'","_")
         
         if codec != "dvdsub":
             cmd_mkvextract=[tools['mkvextract'],"tracks",self.pacvertFile,str(index)+":"+tempFileName+".sup"]
@@ -1425,7 +1427,8 @@ class PacvertMedia:
             
             
             if os.path.isfile(tempFileName+".srt"):
-                return tempFileName+".srt"
+                if sum (1 for line in open(tempFileName+".srt")) > 5:
+                    return tempFileName+".srt"
         except:
             try:
                 pbar.finish()
