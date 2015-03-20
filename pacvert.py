@@ -190,8 +190,10 @@ class Pacvert():
         currentc = 1
         for element in TOCONVERT:
             current_zero = str(currentc).zfill(len(str(len(TOCONVERT))))
-            if len(element.pacvertName) > 20:
-                self.message(O+"  * "+W+element.pacvertName[:17]+"... ("+current_zero+"/"+str(len(TOCONVERT))+"):")
+            #calc_len = 1/3 of a window
+            calc_len = int(int(os.popen('stty size', 'r').read().split()[1])*0.66) 
+            if len(element.pacvertName) > calc_len:
+                self.message(O+"  * "+W+element.pacvertName[:(calc_len-3)]+"... ("+current_zero+"/"+str(len(TOCONVERT))+"):")
             else:
                 self.message(O+"  * "+W+element.pacvertName+" ("+current_zero+"/"+str(len(TOCONVERT))+"):")
             try:
