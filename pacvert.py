@@ -770,7 +770,7 @@ class Pacvert():
         """
         from shutil import rmtree
         if os.path.exists(self.options['temp']):
-            """"""#rmtree(self.options['temp'])
+            rmtree(self.options['temp'])
         print (R+" [!]"+W+" quitting.")
         exit(code)
         
