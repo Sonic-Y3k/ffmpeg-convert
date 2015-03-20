@@ -222,6 +222,7 @@ class Pacvert():
                 currentc += 1
             except PacvertError:
                 try:
+                    currentc += 1
                     TOFAIL.append(element)
                     pbar.finish()
                 except:
