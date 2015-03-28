@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.3;
-DATE = "20.03.2015";
+VERSION = 4.4;
+DATE = "28.03.2015";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -122,12 +122,6 @@ class Pacvert():
         #Load or create config
         self.loadConfigFile()
 
-        #Set output directory
-        try:
-            self.options['outdir'] = self.options['outdir']
-        except KeyError:
-            self.options['outdir'] = os.getcwd()+"/output"
-
         #Set to silent
         self.options['silent'] = False
 
@@ -143,20 +137,21 @@ class Pacvert():
         #Check for updates
         self.upgrade()
         
-        try:
-            self.options['forcedts'] = self.options['forcedts']
-            self.message("Forcing DTS-Audio!",1)
-            self.message("This will be ignored with m4v files.",1)
-        except KeyError:
-            self.options['forcedts'] = False;
+        #Show message if focing dts
+        if self.options['forcedts']:
+            self.message("["+O+"forcedts"+W+"] Forcing DTS-Audio!",1)
+            self.message("["+O+"forcedts"+W+"] This will be ignored with m4v files.",1)
 
-        try:
-            self.options['forcex265'] = self.options['forcex265']
-            self.message("Forcing x265-Encoder!",1)
-            self.message("This will be ignored with m4v files.",1)
-        except KeyError:
-            self.options['forcex265'] = False;
-
+        #Show message if forcing x265
+        if self.options['forcex265']:
+            self.message("["+O+"forcex265"+W+"] Forcing x265-Encoder!",1)
+            self.message("["+O+"forcex265"+W+"] This will be ignored with m4v files.",1)
+        
+        #Show message if forcing nooutdir
+        if self.options['nooutdir']:
+            self.message("["+O+"nooutdir"+W+"] Overwriting source files!",1)
+            self.message("["+O+"nooutdir"+W+"] This will ignore --outdir parameter.",1)		
+        
         self.options['config'] = self.config
 
         #Search for files
@@ -697,16 +692,35 @@ class Pacvert():
         opt_parser = self.build_opt_parser()
         options = opt_parser.parse_args()
         try:
+            # Set options to force dts-audio
             if options.forcedts:
                 self.options['forcedts'] = True
+            else:
+                self.options['forcedts'] = False
+                
+            # Set options to force x265-encoder
             if options.forcex265:
                 self.options['forcex265'] = True
+            else:
+                self.options['forcex265'] = False
+            
+            # Set output directory
             if options.outdir:
                 if os.path.exists(options.outdir):
                     self.options['outdir'] = options.outdir
                 else:
                     self.message("Output directory does not exist.",2)
                     self.exit_gracefully(1)
+            else:
+                self.options['outdir'] = os.getcwd()+"/output"
+            
+            # Store files in the same directory as original
+            if options.nooutdir:
+                self.options['nooutdir'] = True
+            else:
+                self.options['nooutdir'] = False
+                
+            # Handle cpu-threads
             if options.threads:
                 availCPU = self.available_cpu_count()
                 if options.threads > availCPU:
@@ -731,6 +745,7 @@ class Pacvert():
         command_group = option_parser.add_argument_group('COMMAND')
         command_group.add_argument('--forcedts',help='Force use of dts-codec',action='store_true',dest='forcedts')
         command_group.add_argument('--forcex265',help='Force use of x265-encoder',action='store_true',dest='forcex265')
+        command_group.add_argument('--nooutdir',help='Store new files in the same directory as original.',action='store_true',dest='nooutdir')
         command_group.add_argument('--outdir',help='Output directory',action='store',dest='outdir')
         command_group.add_argument('--threads',help='Number of threads',action='store',type=int,dest='threads')
         return option_parser
@@ -857,10 +872,15 @@ class PacvertMedia:
         for c in self.streams:
             #Videostream ignore png streams!
             if c.type == "video" and c.codec != "png" and c.codec != "mjpeg":
-                if c.duration < 1:
-                    self.frames = round(self.format.duration*c.video_fps)+1
+                if c.nb_frames > 0:
+                    self.frames = round(c.nb_frames)+1
                 else:
-                    self.frames = round(c.duration*c.video_fps)+1
+                    if c.duration > 0:
+                        self.frames = round(c.duration*c.video_fps)+1
+                    elif c.duration == 0 and self.format.duration > 0:
+                        self.frames = round(self.format.duration*c.video_fps)+1
+                    else:
+                        self.frames = 1
                 
                 self.streammap.append("-map 0:"+str(c.index))
                 if not options['silent']:
@@ -1460,10 +1480,17 @@ class PacvertMedia:
         if not os.path.exists(self.pacvertFile):
             raise Exception("Input file doesn't exists: "+self.pacvertFile)
         
-        if not os.path.exists(options['outdir']):
-            os.makedirs(options['outdir'])
-
-        outfile = options['outdir']+"/"+os.path.splitext(self.pacvertName)[0]+"."+self.pacvertFileExtensions
+        #Output Directory
+        if options['nooutdir']:
+            outdir = self.pacvertPath
+            outfile = outdir+"/"+os.path.splitext(self.pacvertName)[0]+"-new."+self.pacvertFileExtensions
+        else:
+            outdir = options['outdir']
+            outfile = outdir+"/"+os.path.splitext(self.pacvertName)[0]+"."+self.pacvertFileExtensions
+        
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
+        
         cmds = self.getFlags(tools)
         cmds.extend(['-y', '-threads',str(options['threads']), outfile])
 
@@ -1539,12 +1566,19 @@ class PacvertMedia:
         old_c = self.config.getboolean("VideoSettings","Crop")
         self.config.set("VideoSettings","CROP","False")
         
-        if not os.path.isfile(options['outdir']+"/"+os.path.splitext(self.pacvertName)[0]+"."+self.pacvertFileExtensions):
+        #Output Directory
+        if options['nooutdir']:
+            outdir = self.pacvertPath
+            output = outdir+"/"+os.path.splitext(self.pacvertName)[0]+"-new."+self.pacvertFileExtensions
+        else:
+            outdir = options['outdir']
+            output = outdir+"/"+os.path.splitext(self.pacvertName)[0]+"."+self.pacvertFileExtensions
+        
+        if not os.path.isfile(output):
             self.message(B+"    + "+W+"Sanity Check:\t"+R+"Failed"+W+". (output doesn't exist)"+W,2)
             TOFAIL.append(self)
-        else:
+        else:		
             #Analyze output
-            output = options['outdir']+"/"+os.path.splitext(self.pacvertName)[0]+"."+self.pacvertFileExtensions
             options['silent'] = True
             outputf = PacvertMedia(output,self.config)
             outputf.analyze(tools,options)
@@ -1565,18 +1599,43 @@ class PacvertMedia:
 
             #maxdiff in Frames
             maxdiff = self.config.getint("FileSettings","MaxDiff")
-
+            
+            
+            #Filesize difference
+            
+            oldsize = self.pacvertFilesize
+            newsize = outputf.pacvertFilesize			
+            
             # Proceed...
             if self.config.getboolean('FileSettings','deletefile') and diff <= maxdiff:
-                self.message(B+"    + "+W+"Sanity Check:\t"+G+"Passed"+W+". ("+O+"deleting"+W+" file)"+W)
+                self.message(B+"    + "+W+"[Sanity Check] File "+G+"Passed"+W+".")
+                self.message(B+"    + "+W+"[Sanity Check] Deleting "+O+"original"+W+" file.")
+                
+                if newsize > oldsize:
+                    self.message(B+"    + "+W+"[Sanity Check] New file gained "+O+str(self.sizeof_fmt(newsize-oldsize))+W+".")
+                else:
+                    self.message(B+"    + "+W+"[Sanity Check] New file lost "+O+str(self.sizeof_fmt(oldsize-newsize))+W+".")
+                
                 os.remove(self.pacvertFile)
+                os.rename(output,str(output).replace("-new."+self.pacvertFileExtensions,"."+self.pacvertFileExtensions))
             elif self.config.getboolean('FileSettings','deletefile') and diff > maxdiff:
-                self.message(B+"    + "+W+"Sanity check:\t"+R+"Failed"+W+". (max diff: "+str(maxdiff)+" | cur diff: "+str(diff)+") - keeping old & removing "+O+"NEW"+W+" file"+W,2)
+                self.message(B+"    + "+W+"[Sanity Check] File "+R+"Failed"+W+".",2)
+                self.message(B+"    + "+W+"[Sanity Check] Max allowed difference: "+O+str(maxdiff)+W,2)
+                self.message(B+"    + "+W+"[Sanity Check] Current difference: "+O+str(diff)+W,2)
+                self.message(B+"    + "+W+"[Sanity Check] Keeping old & removing "+O+"NEW"+W+" file"+W,2)
                 os.remove(output)
             elif not self.config.getboolean('FileSettings','deletefile') and diff <= maxdiff:
-                self.message(B+"    + "+W+"Sanity Check:\t"+G+"Passed"+W+". ("+O+"keeping"+W+" file"+W)
+                self.message(B+"    + "+W+"[Sanity Check] File "+G+"Passed"+W+".")
+                if newsize > oldsize:
+                    self.message(B+"    + "+W+"[Sanity Check] New file gained "+O+str(self.sizeof_fmt(newsize-oldsize))+W+".")
+                else:
+                    self.message(B+"    + "+W+"[Sanity Check] New file lost "+O+str(self.sizeof_fmt(oldsize-newsize))+W+".")
+                self.message(B+"    + "+W+"[Sanity Check] Keeping "+O+"old"+W+" & "+O+"new"+W+" file"+W)
             elif diff > maxdiff:
-                self.message(B+"    + "+W+"Sanity Check:\t"+R+"Failed"+W+". (max diff: "+str(maxdiff)+" | cur diff: "+str(diff)+")  - removing "+O+"NEW"+W+" file"+W,2)
+                self.message(B+"    + "+W+"[Sanity Check] File "+R+"Failed"+W+".",2)
+                self.message(B+"    + "+W+"[Sanity Check] Max allowed difference: "+O+str(maxdiff)+W,2)
+                self.message(B+"    + "+W+"[Sanity Check] Current difference: "+O+str(diff)+W,2)
+                self.message(B+"    + "+W+"[Sanity Check] Keeping old & removing "+O+"NEW"+W+" file"+W,2)
                 os.remove(output)
             
     
@@ -1635,6 +1694,7 @@ class PacvertMediaStreamInfo(object):
         self.sub_forced = None
         self.sub_default = None
         self.metadata = {}
+        self.nb_frames = None
 
     @staticmethod
     def parse_float(val, default=0.0):
@@ -1678,6 +1738,8 @@ class PacvertMediaStreamInfo(object):
             self.audio_samplerate = self.parse_float(val)
         elif key == 'DISPOSITION:attached_pic':
             self.attached_pic = self.parse_int(val)
+        elif key == 'nb_frames':
+            self.nb_frames = self.parse_int(val)
 
         if key.startswith('TAG:'):
             key = key.split('TAG:')[1]
