@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.4;
-DATE = "28.03.2015";
+VERSION = 4.5;
+DATE = "19.04.2015";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -875,13 +875,16 @@ class PacvertMedia:
                 if c.nb_frames > 0:
                     self.frames = round(c.nb_frames)+1
                 else:
-                    if c.duration > 0:
-                        self.frames = round(c.duration*c.video_fps)+1
-                    elif c.duration == 0 and self.format.duration > 0:
-                        self.frames = round(self.format.duration*c.video_fps)+1
-                    else:
+                    try:
+                        if c.duration > 0:
+                            self.frames = round(c.duration*c.video_fps)+1
+                        elif c.duration == 0 and self.format.duration > 0:
+                            self.frames = round(self.format.duration*c.video_fps)+1
+                        else:
+                            self.frames = 1
+                    except TypeError:
                         self.frames = 1
-                
+                        
                 self.streammap.append("-map 0:"+str(c.index))
                 if not options['silent']:
                     self.message(B+"    + "+W+"-map 0:"+str(c.index))
