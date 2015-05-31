@@ -115,7 +115,7 @@ class Pacvert():
         self.handle_args()		
     
         #Check for Unix Systems
-        if self.getPlatform() != "Linux" and self.getPlatform() != "Darwin":
+        if self.getPlatform() != "Linux" and self.getPlatform() != "Darwin" and self.getPlatform() != 'Cygwin':
             self.message("Only Linux/Darwin is currently supported.",2)
             self.exit_gracefully(1)
 
@@ -537,7 +537,7 @@ class Pacvert():
                 self.config.add_section("AudioSettings")
             if not self.config.has_option("AudioSettings","DefaultAudioCodec"):
                 self.config.set("AudioSettings","DefaultAudioCodec","")
-            if self.getPlatform() == "Linux":
+            if self.getPlatform() == "Linux" or self.getPlatform() == "Cygwin":
                 if not self.config.has_option("AudioSettings","AACLib"):
                     self.config.set("AudioSettings","AACLib","aac -strict -2")
             elif self.getPlatform() == "Darwin":
@@ -564,7 +564,7 @@ class Pacvert():
         """
             Returns the OS-Dependant config filepath
         """
-        if self.getPlatform() == "Linux":
+        if self.getPlatform() == "Linux" or self.getPlatform() == "Darwin":
             return "/etc/pacvert.conf"
         elif self.getPlatform() == "Darwin":
             return "/usr/local/etc/pacvert.conf"
@@ -577,6 +577,8 @@ class Pacvert():
             return "Linux"
         elif "Darwin" in os.uname()[0]:
             return "Darwin"
+        elif 'Cygwin' in os.uname()[0]:
+            return 'Cygwin'
         else:
             self.message("Unsupported Platform.",2)
             exit_gracefully(1)
