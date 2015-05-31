@@ -577,11 +577,11 @@ class Pacvert():
             return "Linux"
         elif "Darwin" in os.uname()[0]:
             return "Darwin"
-        elif 'Cygwin' in os.uname()[0]:
+        elif 'CYGWIN' in os.uname()[0]:
             return 'Cygwin'
         else:
-            self.message("Unsupported Platform.",2)
-            exit_gracefully(1)
+            self.message("Unsupported Platform ("+os.uname()[0]+").",2)
+            self.exit_gracefully(1)
     
     def message(self, mMessage, mType = 0):
         if mType == 0:
