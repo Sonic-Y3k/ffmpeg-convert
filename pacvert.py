@@ -564,7 +564,7 @@ class Pacvert():
         """
             Returns the OS-Dependant config filepath
         """
-        if self.getPlatform() == "Linux" or self.getPlatform() == "Darwin":
+        if self.getPlatform() == "Linux" or self.getPlatform() == "Cygwin":
             return "/etc/pacvert.conf"
         elif self.getPlatform() == "Darwin":
             return "/usr/local/etc/pacvert.conf"
