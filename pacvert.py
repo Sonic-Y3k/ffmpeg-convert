@@ -17,7 +17,7 @@
 ################################
 
 # Version
-VERSION = 4.6;
+VERSION = 4.7;
 DATE = "07.06.2015";
 
 # Console colors
@@ -1241,7 +1241,7 @@ class PacvertMedia:
             signal.signal(signal.SIGALRM,on_sigalrm)
 
         try:
-            p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True,universal_newlines=True)
+            p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
         except OSError:
             raise Exception("Error while calling bdsup2subpp binary")
 
@@ -1309,7 +1309,7 @@ class PacvertMedia:
                 cmds.remove(lang)
                 cmds.remove("--tesseract-lang")
 
-            p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True,universal_newlines=True)
+            p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
         except OSError:
             raise Exception("Error while calling vobsub2srt binary")
 
