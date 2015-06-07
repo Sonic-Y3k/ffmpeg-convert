@@ -1182,7 +1182,7 @@ class PacvertMedia:
             signal.signal(signal.SIGALRM,on_sigalrm)
             
             try:
-                p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
+                p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True,bufsize=10)
             except OSError:
                 raise Exception("Error while calling mkvextract binary")
             
@@ -1241,7 +1241,7 @@ class PacvertMedia:
             signal.signal(signal.SIGALRM,on_sigalrm)
 
         try:
-            p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
+            p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True,universal_newlines=True)
         except OSError:
             raise Exception("Error while calling bdsup2subpp binary")
 
@@ -1309,7 +1309,7 @@ class PacvertMedia:
                 cmds.remove(lang)
                 cmds.remove("--tesseract-lang")
 
-            p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
+            p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True,universal_newlines=True)
         except OSError:
             raise Exception("Error while calling vobsub2srt binary")
 
@@ -1479,12 +1479,11 @@ class PacvertMedia:
             cmd.extend(i.split(" "))
         
         return cmd
-        
-    
+
     def convert(self,tools,options,timeout=10):
         if not os.path.exists(self.pacvertFile):
             raise Exception("Input file doesn't exists: "+self.pacvertFile)
-        
+
         #Output Directory
         if options['nooutdir']:
             outdir = self.pacvertPath
@@ -1492,10 +1491,10 @@ class PacvertMedia:
         else:
             outdir = options['outdir']
             outfile = outdir+"/"+os.path.splitext(self.pacvertName)[0]+"."+self.pacvertFileExtensions
-        
+
         if not os.path.exists(outdir):
             os.makedirs(outdir)
-        
+
         cmds = self.getFlags(tools)
         cmds.extend(['-y', '-threads',str(options['threads']), outfile])
 
@@ -1506,7 +1505,7 @@ class PacvertMedia:
             signal.signal(signal.SIGALRM,on_sigalrm)
 
         try:
-            p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
+            p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True,universal_newlines=True)
         except OSError:
             raise PacvertError("Error while calling ffmpeg binary","","")
         
@@ -1526,17 +1525,13 @@ class PacvertMedia:
             if not ret:
                 break
             
-            try:
-                ret = str(ret.decode("UTF-8")).replace("\\n","\n").replace("\\r","\r")
-            except UnicodeDecodeError:
-                ret = str("frame=\t-1\tfps=\t-1")
             total_output += ret
             buf += ret
-            if "\r" in buf:
-                line,buf = buf.split("\r", 1)
+            if "\n" in buf:
+                line,buf = buf.split("\n", 1)
 
                 tmp = pat.findall(line)
-            
+
                 if len(tmp) == 1:
                     yielded = True
                     yield tmp[0]
