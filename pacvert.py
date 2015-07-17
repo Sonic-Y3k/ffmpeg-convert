@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.7;
-DATE = "07.06.2015";
+VERSION = 4.8;
+DATE = "16.07.2015";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -171,19 +171,19 @@ class Pacvert():
             pbar.update(i + 1)
         pbar.finish()
 
-        #Beginning with deep analysis
-        for element in TOCONVERT:
-            element.analyze(self.tools,self.options)
-            element.analyze_video(self.tools,self.options)
-            element.analyze_audio(self.tools,self.options)
-            element.analyze_subtitles(self.tools,self.options)
-        
-        TOCONVERT.sort(key=lambda x: x.pacvertName, reverse=False)
+        TOCONVERT.sort(key=lambda x: x.pacvertFile, reverse=False)
 
         #Beginn to convert
         self.message("Converting:")
         currentc = 1
         for element in TOCONVERT:
+            #Beginning with deep analysis
+            element.analyze(self.tools,self.options)
+            element.analyze_video(self.tools,self.options)
+            element.analyze_audio(self.tools,self.options)
+            element.analyze_subtitles(self.tools,self.options)
+
+            #Default conversion
             current_zero = str(currentc).zfill(len(str(len(TOCONVERT))))
             #calc_len = 1/3 of a window
             calc_len = int(int(os.popen('stty size', 'r').read().split()[1])*0.66) 
@@ -1405,6 +1405,7 @@ class PacvertMedia:
                     pval = temp
             
             pbar.finish()
+
             #Second Block, extract frames from subtitle
             if codec != "dvdsub":
                 widgets = [G+' [',AnimatedMarker(),']','     '+B+'+'+W+' Extracting frames:\t',Percentage(),' (',ETA(),')']
@@ -1449,7 +1450,12 @@ class PacvertMedia:
                 pval = temp
             
             pbar.finish()
-            
+
+            #Remove in the previous step extracted sub/sup
+            if os.path.isfile(tempFileName+".sub"):
+                os.remove(tempFileName+".sub")
+            if os.path.isfile(tempFileName+".sup"):
+                os.remove(tempFileName+".sup")
             
             if os.path.isfile(tempFileName+".srt"):
                 if sum (1 for line in open(tempFileName+".srt")) > 5:
