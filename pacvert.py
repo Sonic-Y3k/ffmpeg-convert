@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.8;
-DATE = "16.07.2015";
+VERSION = 4.9;
+DATE = "20.07.2015";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -937,7 +937,7 @@ class PacvertMedia:
 
         count = 5
         
-        if self.format.duration <= 150:
+        if self.format.duration <= 150 and self.format.duration > 0:
             count = 2
         
         crop = [0,0,0,0]
