@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.9;
-DATE = "20.07.2015";
+VERSION = 4.91;
+DATE = "26.10.2015";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -986,15 +986,14 @@ class PacvertMedia:
                     for d in self.streams:
                         if d.type == "audio" and ((c.codec == "ac3" and d.codec == "aac") or (c.codec == "aac" and d.codec == "ac3")) and c.language == d.language:
                             doubleLang = True
-                    
-                    if (c.codec == "dca" or c.codec == "truehd" or c.codec == "ac3"):
+                    if (c.codec == "dca" or c.codec == "truehd" or c.codec == "ac3" or c.codec == "eac3"):
                         self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
                         self.streammap.append("-map 0:"+str(c.index))
                         self.message(B+"    + "+W+"-map 0:"+str(c.index))
                         self.streamopt.append("-c:a:"+str(audCount)+" copy")
                         self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
                         audCount+=1
-                    elif (c.codec != "dca" and c.codec != "truehd" and c.codec != "ac3") and doubleLang == False:
+                    elif (c.codec != "dca" and c.codec != "truehd" and c.codec != "ac3" and c.codec != "eac3") and doubleLang == False:
                         self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
                         self.streammap.append("-map 0:"+str(c.index))
                         self.message(B+"    + "+W+"-map 0:"+str(c.index))
