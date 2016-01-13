@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.91;
-DATE = "26.10.2015";
+VERSION = 4.92;
+DATE = "13.01.2016";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -136,6 +136,9 @@ class Pacvert():
 
         #Check for updates
         self.upgrade()
+        
+        if self.options['nocrop']:
+            self.message("["+O+"nocrop"+W+"] Disabling cropping!",1)
         
         #Show message if focing dts
         if self.options['forcedts']:
@@ -699,7 +702,12 @@ class Pacvert():
                 self.options['forcedts'] = True
             else:
                 self.options['forcedts'] = False
-                
+            
+            if options.nocrop:
+                self.options['nocrop'] = True
+            else:
+                self.options['nocrop'] = False
+
             # Set options to force x265-encoder
             if options.forcex265:
                 self.options['forcex265'] = True
@@ -747,6 +755,7 @@ class Pacvert():
         command_group = option_parser.add_argument_group('COMMAND')
         command_group.add_argument('--forcedts',help='Force use of dts-codec',action='store_true',dest='forcedts')
         command_group.add_argument('--forcex265',help='Force use of x265-encoder',action='store_true',dest='forcex265')
+        command_group.add_argument('--nocrop',help='Disable cropping.',action='store_true',dest='nocrop')
         command_group.add_argument('--nooutdir',help='Store new files in the same directory as original.',action='store_true',dest='nooutdir')
         command_group.add_argument('--outdir',help='Output directory',action='store',dest='outdir')
         command_group.add_argument('--threads',help='Number of threads',action='store',type=int,dest='threads')
@@ -905,7 +914,7 @@ class PacvertMedia:
                     
                     self.streamopt.append("-x265-params"+x265params.replace("  "," "))
                     
-                    if options['config'].getboolean("VideoSettings","crop"):
+                    if options['config'].getboolean("VideoSettings","crop") and not options['nocrop']:
                         crop=self.analyze_crop(tools)
                         self.streamopt.append("-filter:v crop="+crop)
                         
@@ -920,7 +929,7 @@ class PacvertMedia:
                         self.streamopt.append("-crf "+options['config'].get("VideoSettings","crf"))
                         self.streamopt.append("-metadata:s:v:0 language="+c.language)
                         
-                        if options['config'].getboolean("VideoSettings","crop"):
+                        if options['config'].getboolean("VideoSettings","crop") and not options['nocrop']:
                             crop=self.analyze_crop(tools)
                             self.streamopt.append("-filter:v crop="+crop)
                 
