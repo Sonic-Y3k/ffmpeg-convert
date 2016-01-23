@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.92;
-DATE = "13.01.2016";
+VERSION = 4.93;
+DATE = "23.01.2016";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -148,8 +148,14 @@ class Pacvert():
         #Show message if forcing x265
         if self.options['forcex265']:
             self.message("["+O+"forcex265"+W+"] Forcing x265-Encoder!",1)
-            self.message("["+O+"forcex265"+W+"] This will be ignored with m4v files.",1)
+            self.message("["+O+"forcex265"+W+"] This is highly experimental!",1)
         
+        #Show message if forcing vp9
+        if self.options['vp9']:
+            self.message("["+O+"vp9"+W+"] Forcing vp9-Encoder!", 1)
+            self.message("["+O+"vp9"+W+"] This is highly experimental!")
+
+
         #Show message if forcing nooutdir
         if self.options['nooutdir']:
             self.message("["+O+"nooutdir"+W+"] Overwriting source files!",1)
@@ -713,6 +719,12 @@ class Pacvert():
                 self.options['forcex265'] = True
             else:
                 self.options['forcex265'] = False
+
+            # Set options to force vp9-encoder
+            if options.vp9:
+                self.options['vp9'] = True
+            else:
+                self.options['vp9'] = False
             
             # Set output directory
             if options.outdir:
@@ -729,7 +741,9 @@ class Pacvert():
                 self.options['nooutdir'] = True
             else:
                 self.options['nooutdir'] = False
-                
+
+            self.options['availCPU'] = self.available_cpu_count()
+
             # Handle cpu-threads
             if options.threads:
                 availCPU = self.available_cpu_count()
@@ -755,6 +769,7 @@ class Pacvert():
         command_group = option_parser.add_argument_group('COMMAND')
         command_group.add_argument('--forcedts',help='Force use of dts-codec',action='store_true',dest='forcedts')
         command_group.add_argument('--forcex265',help='Force use of x265-encoder',action='store_true',dest='forcex265')
+        command_group.add_argument('--vp9',help='Force use of vp9-encoder', action='store_true',dest='vp9')
         command_group.add_argument('--nocrop',help='Disable cropping.',action='store_true',dest='nocrop')
         command_group.add_argument('--nooutdir',help='Store new files in the same directory as original.',action='store_true',dest='nooutdir')
         command_group.add_argument('--outdir',help='Output directory',action='store',dest='outdir')
@@ -867,19 +882,39 @@ class PacvertMedia:
             self.message(O+"  * "+W+"Video track:")
         
         #check for crf value
-        cmd = [tools['mediainfo'],"--Output='Video;%Encoded_Library_Settings%'",self.pacvertFile]
-        proc_mediainfo = Popen(cmd, shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
+        cmd = [tools['mediainfo'],"--Output=Video;%Encoded_Library_Settings%",self.pacvertFile]
+        proc_mediainfo = Popen(cmd,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True)
         
         stdout_data, _ = proc_mediainfo.communicate()
         proc_mediainfo = stdout_data.decode("UTF-8").split(' / ')
 
         crf = 0.0
+
         for b in proc_mediainfo:
             if b.split('=')[0] == "crf":
                 crf = float(b.split('=')[1].replace(',','.'))
                 if not options['silent']:
                     self.message(B+"    + "+W+"-source CRF: "+str(crf))
 
+        #unset
+        cmd = None
+        proc_mediainfo = None
+        stdout_data = None
+
+        #check for existing bitrate
+        cmd = [tools['mediainfo'],"--Output=Video;%BitRate%",self.pacvertFile]
+        proc_mediainfo = Popen(
+            cmd,
+            shell=False,
+            stdin=PIPE,
+            stdout=PIPE,
+            stderr=PIPE,
+            close_fds=True
+        )
+        try:
+            bitrate = round(int(proc_mediainfo.communicate()[0].decode('UTF-8'))/1000)
+        except:
+            bitrate = 0
         for c in self.streams:
             #Videostream ignore png streams!
             if c.type == "video" and c.codec != "png" and c.codec != "mjpeg":
@@ -918,7 +953,18 @@ class PacvertMedia:
                         crop=self.analyze_crop(tools)
                         self.streamopt.append("-filter:v crop="+crop)
                         
-                    self.streamopt.append("-metadata:s:v:0 language="+c.language)	
+                    self.streamopt.append("-metadata:s:v:0 language="+c.language)
+                elif options['vp9']:
+                    self.streamopt.append("-c:v:0 libvpx-vp9")
+                    self.streamopt.append("-crf "+options['config'].get("VideoSettings","crf"))
+                    self.streamopt.append("-b:v "+str(bitrate)+"k")
+                    self.streamopt.append("-tile-columns "+str(round(options['availCPU']/2)))
+                    self.streamopt.append("-threads "+str(min(x for x in [0, options['availCPU'], options['threads']] if x is not 0)))
+                    self.streamopt.append("-metadata:s:v:0 language="+c.language)
+
+                    if options['config'].getboolean("VideoSettings","crop") and not options['nocrop']:
+                        crop=self.analyze_crop(tools)
+                        self.streamopt.append("-filter:v crop="+crop)
                 else:
                     if crf < options['config'].getfloat("VideoSettings","CRF"):
                         self.streamopt.append("-c:v:0 libx264")
@@ -932,12 +978,11 @@ class PacvertMedia:
                         if options['config'].getboolean("VideoSettings","crop") and not options['nocrop']:
                             crop=self.analyze_crop(tools)
                             self.streamopt.append("-filter:v crop="+crop)
-                
                     else:
                         self.streamopt.append("-c:v:0 copy")
                         self.streamopt.append("-metadata:s:v:0 language="+c.language)
                 if not options['silent']:
-                    for idx in range(tempIdx,len(self.streamopt)):				
+                    for idx in range(tempIdx,len(self.streamopt)):
                         self.message(B+"    + "+W+self.streamopt[idx])
     
     def analyze_crop(self,tools):
