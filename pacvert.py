@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.93;
-DATE = "23.01.2016";
+VERSION = 4.94;
+DATE = "24.01.2016";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -155,6 +155,9 @@ class Pacvert():
             self.message("["+O+"vp9"+W+"] Forcing vp9-Encoder!", 1)
             self.message("["+O+"vp9"+W+"] This is highly experimental!")
 
+        #Show message if disabling maxrate
+        if self.options['disable_maxrate']:
+            self.message("["+O+"disable_maxrate"+W+"] Disabling maxrate.",1)
 
         #Show message if forcing nooutdir
         if self.options['nooutdir']:
@@ -726,6 +729,11 @@ class Pacvert():
             else:
                 self.options['vp9'] = False
             
+            if options.disable_maxrate:
+                self.options['disable_maxrate'] = True
+            else:
+                self.options['disable_maxrate'] = False
+
             # Set output directory
             if options.outdir:
                 if os.path.exists(options.outdir):
@@ -770,6 +778,7 @@ class Pacvert():
         command_group.add_argument('--forcedts',help='Force use of dts-codec',action='store_true',dest='forcedts')
         command_group.add_argument('--forcex265',help='Force use of x265-encoder',action='store_true',dest='forcex265')
         command_group.add_argument('--vp9',help='Force use of vp9-encoder', action='store_true',dest='vp9')
+        command_group.add_argument('--disable_maxrate',help='Disables x264-maxrate', action='store_true',dest='disable_maxrate')
         command_group.add_argument('--nocrop',help='Disable cropping.',action='store_true',dest='nocrop')
         command_group.add_argument('--nooutdir',help='Store new files in the same directory as original.',action='store_true',dest='nooutdir')
         command_group.add_argument('--outdir',help='Output directory',action='store',dest='outdir')
@@ -912,7 +921,7 @@ class PacvertMedia:
             close_fds=True
         )
         try:
-            bitrate = round(int(proc_mediainfo.communicate()[0].decode('UTF-8'))/1000)
+            bitrate = int(proc_mediainfo.communicate()[0].decode('UTF-8'))
         except:
             bitrate = 0
         for c in self.streams:
@@ -973,6 +982,9 @@ class PacvertMedia:
                         self.streamopt.append("-preset "+options['config'].get("VideoSettings","x264preset"))
                         self.streamopt.append("-tune "+options['config'].get("VideoSettings","x264tune"))
                         self.streamopt.append("-crf "+options['config'].get("VideoSettings","crf"))
+                        if not options['disable_maxrate']:
+                            self.streamopt.append("-maxrate "+str(round(bitrate/1000))+"k")
+                            self.streamopt.append("-bufsize "+str(round((bitrate*4.5)/1000))+"k")
                         self.streamopt.append("-metadata:s:v:0 language="+c.language)
                         
                         if options['config'].getboolean("VideoSettings","crop") and not options['nocrop']:
