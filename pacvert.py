@@ -983,8 +983,8 @@ class PacvertMedia:
                         self.streamopt.append("-tune "+options['config'].get("VideoSettings","x264tune"))
                         self.streamopt.append("-crf "+options['config'].get("VideoSettings","crf"))
                         if not options['disable_maxrate']:
-                            self.streamopt.append("-maxrate "+str(round(bitrate/1000))+"k")
-                            self.streamopt.append("-bufsize "+str(round((bitrate*4.5)/1000))+"k")
+                            self.streamopt.append("-maxrate "+str(round((bitrate*1.10)/1000))+"k")
+                            self.streamopt.append("-bufsize "+str(round(((bitrate*1.10)*4.5)/1000))+"k")
                         self.streamopt.append("-metadata:s:v:0 language="+c.language)
                         
                         if options['config'].getboolean("VideoSettings","crop") and not options['nocrop']:
