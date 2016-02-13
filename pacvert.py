@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.94;
-DATE = "24.01.2016";
+VERSION = 4.95;
+DATE = "13.02.2016";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -723,6 +723,12 @@ class Pacvert():
             else:
                 self.options['forcex265'] = False
 
+            # Keep temp (debug)
+            if options.keeptemp:
+                self.options['keeptemp'] = True
+            else:
+                self.options['keeptemp'] = False
+
             # Set options to force vp9-encoder
             if options.vp9:
                 self.options['vp9'] = True
@@ -783,6 +789,7 @@ class Pacvert():
         command_group.add_argument('--nooutdir',help='Store new files in the same directory as original.',action='store_true',dest='nooutdir')
         command_group.add_argument('--outdir',help='Output directory',action='store',dest='outdir')
         command_group.add_argument('--threads',help='Number of threads',action='store',type=int,dest='threads')
+        command_group.add_argument('--keeptemp',help='Debug: Keep Temp-Directory',action='store_true',dest='keeptemp')
         return option_parser
 
     def sizeof_fmt (self, num, suffix='B'):
@@ -819,7 +826,7 @@ class Pacvert():
             We want to remove the temp folder and any files contained within it.
         """
         from shutil import rmtree
-        if os.path.exists(self.options['temp']):
+        if os.path.exists(self.options['temp']) and not self.options['keeptemp']:
             rmtree(self.options['temp'])
         print (R+" [!]"+W+" quitting.")
         exit(code)
@@ -1222,7 +1229,7 @@ class PacvertMedia:
                     else:
                         self.message(B+"    + "+W+" Skipping subtitle.",2)
                 else:
-                    if c.codec not in ["dvb_teletext","dvbsub"]:
+                    if c.codec not in ["dvb_teletext","dvbsub","unknown"]:
                         self.streammap.append("-map 0:"+str(c.index))
                         if self.pacvertFileExtensions == "mkv":
                             self.streamopt.append("-c:s:"+str(subCount)+" srt")
@@ -1232,6 +1239,8 @@ class PacvertMedia:
                             self.streamopt.append("-c:s:"+str(subCount)+" mov_text")
                             self.streamopt.append("-metadata:s:s:"+str(subCount)+" language="+c.language)
                             subCount+=1
+                    else:
+                        self.message(B+"    + "+W+" Bad or unknown codec. Skipping subtitle.",2)
                 for idx in range(tempIdx,len(self.streamopt)):
                     self.message(B+"    + "+W+self.streamopt[idx])
     
