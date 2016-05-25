@@ -1016,32 +1016,27 @@ class PacvertMedia:
     
     def analyze_crop(self,tools):
         from subprocess import STDOUT
-        #ffmpeg -ss 00:05:00 -i 'file' -t 00:00:05 -vf "cropdetect=24:16:0" -f null - 2>&1 |awk '/crop/ {print $NF}' |tail -1
+        check_percent = 2
+        check_frames = round(self.frames * (check_percent/100))
 
-        count = 5
-        
-        if self.format.duration <= 150 and self.format.duration > 0:
-            count = 2
-        
         crop = [0,0,0,0]
         pbar = ProgressBar(widgets=[G+' [',AnimatedMarker(),'] '+B+'    + '+W+'Analyzing cropping rectangle.\t']).start()
-        for a in range(0,count):
-            cmd = [tools['ffmpeg'],"-ss",str(self.format.duration+(a*30)),"-i",self.pacvertFile,"-t","00:00:05","-vf","cropdetect=24:16:0","-f", "null", "-"]
-            proc_ffmpeg = check_output(cmd, stderr=STDOUT)
-            pbar.update(a)
-            for c in str(proc_ffmpeg.decode("ISO-8859-1")).split('\n'):
-                if "crop=" in c:
-                    temp_crop = c.split(" ")[13].replace("crop=","").split(":")
-                    try:
-                        if int(temp_crop[0]) > crop[0]:
-                            crop[0] = int(temp_crop[0])
-                            crop[2] = int(temp_crop[2])
-                    
-                        if int(temp_crop[1]) > crop[1]:
-                            crop[1] = int(temp_crop[1])
-                            crop[3] = int(temp_crop[3])
-                    except ValueError:
-                        """"""
+        cmd = [tools['ffmpeg'],"-i",self.pacvertFile,"-vframes",str(check_frames),"-vf","cropdetect=24:16:0","-f", "null", "-"]
+        proc_ffmpeg = check_output(cmd, stderr=STDOUT)
+        for c in str(proc_ffmpeg.decode("ISO-8859-1")).split('\n'):
+            if "crop=" in c:
+                temp_crop = c.split(" ")[13].replace("crop=","").split(":")
+                try:
+                    if int(temp_crop[0]) > crop[0]:
+                        crop[0] = int(temp_crop[0])
+                        crop[2] = int(temp_crop[2])
+                
+                    if int(temp_crop[1]) > crop[1]:
+                        crop[1] = int(temp_crop[1])
+                        crop[3] = int(temp_crop[3])
+                except ValueError:
+                    """"""            
+
         pbar.finish()
         return str(crop[0])+":"+str(crop[1])+":"+str(crop[2])+":"+str(crop[3])
              
