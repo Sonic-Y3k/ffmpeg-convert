@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.95;
-DATE = "13.02.2016";
+VERSION = 4.96;
+DATE = "22.04.2016";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -164,6 +164,9 @@ class Pacvert():
             self.message("["+O+"nooutdir"+W+"] Overwriting source files!",1)
             self.message("["+O+"nooutdir"+W+"] This will ignore --outdir parameter.",1)		
         
+        if self.options['snap']:
+            self.message("["+O+"snap"+W+"] Only converting first five minutes.",1)
+
         self.options['config'] = self.config
 
         #Search for files
@@ -234,7 +237,8 @@ class Pacvert():
                     pbar.finish()
                 except:
                     """"""
-            element.check_sanity(self.tools,self.options)
+            if not self.options['snap']:
+                element.check_sanity(self.tools,self.options)
 
         #Show failed
         if len(TOFAIL) > 0:
@@ -514,7 +518,7 @@ class Pacvert():
             if not self.config.has_option("FileSettings","DeleteFile"):
                 self.config.set("FileSettings", "DeleteFile", "True")
             if not self.config.has_option("FileSettings","FileFormat"):
-                self.config.set("FileSettings", "FileFormat", "")
+                self.config.set("FileSettings", "FileFormat", "mkv")
             if not self.config.has_option("FileSettings","SearchExtensions"):
                 self.config.set("FileSettings", "SearchExtensions", "avi,flv,mov,mp4,mpeg,mpg,ogv,wmv,m2ts,rmvb,rm,3gp,m4v,3g2,mj2,asf,divx,vob,mkv")
             if not self.config.has_option("FileSettings","MaxDiff"):
@@ -740,6 +744,11 @@ class Pacvert():
             else:
                 self.options['disable_maxrate'] = False
 
+            if options.snap:
+                self.options['snap'] = True
+            else:
+                self.options['snap'] = False
+
             # Set output directory
             if options.outdir:
                 if os.path.exists(options.outdir):
@@ -788,6 +797,7 @@ class Pacvert():
         command_group.add_argument('--nocrop',help='Disable cropping.',action='store_true',dest='nocrop')
         command_group.add_argument('--nooutdir',help='Store new files in the same directory as original.',action='store_true',dest='nooutdir')
         command_group.add_argument('--outdir',help='Output directory',action='store',dest='outdir')
+        command_group.add_argument('--snap',help='Converts first five minutes.',action='store_true',dest='snap')
         command_group.add_argument('--threads',help='Number of threads',action='store',type=int,dest='threads')
         command_group.add_argument('--keeptemp',help='Debug: Keep Temp-Directory',action='store_true',dest='keeptemp')
         return option_parser
@@ -1015,8 +1025,8 @@ class PacvertMedia:
         
         crop = [0,0,0,0]
         pbar = ProgressBar(widgets=[G+' [',AnimatedMarker(),'] '+B+'    + '+W+'Analyzing cropping rectangle.\t']).start()
-        for a in range(1,count):
-            cmd = [tools['ffmpeg'],"-ss",str(a*30),"-i",self.pacvertFile,"-t","00:00:05","-vf","cropdetect=24:16:0","-f", "null", "-"]
+        for a in range(0,count):
+            cmd = [tools['ffmpeg'],"-ss",str(self.format.duration+(a*30)),"-i",self.pacvertFile,"-t","00:00:05","-vf","cropdetect=24:16:0","-f", "null", "-"]
             proc_ffmpeg = check_output(cmd, stderr=STDOUT)
             pbar.update(a)
             for c in str(proc_ffmpeg.decode("ISO-8859-1")).split('\n'):
@@ -1576,7 +1586,11 @@ class PacvertMedia:
             os.makedirs(outdir)
 
         cmds = self.getFlags(tools)
-        cmds.extend(['-y', '-threads',str(options['threads']), outfile])
+        cmds.extend(['-y', '-threads',str(options['threads'])])
+        if options['snap']:
+            cmds.extend(['-t', '00:05:00'])
+
+        cmds.append(outfile)
 
         if timeout:
             def on_sigalrm(*_):
