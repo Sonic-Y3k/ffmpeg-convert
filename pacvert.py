@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.97;
-DATE = "25.05.2016";
+VERSION = 4.98;
+DATE = "05.06.2016";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -1016,7 +1016,7 @@ class PacvertMedia:
     
     def analyze_crop(self,tools):
         from subprocess import STDOUT
-        check_percent = 2
+        check_percent = 5
         check_frames = round(self.frames * (check_percent/100))
 
         crop = [0,0,0,0]
