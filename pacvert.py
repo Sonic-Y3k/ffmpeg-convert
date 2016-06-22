@@ -977,7 +977,7 @@ class PacvertMedia:
                         x265params += ":vbv-maxrate="+str(round(bitrate/1000))+"k"
                         x265params += ":vbv-bufsize="+str(round((bitrate*4.5)/1000))+"k"
                     
-                    self.streamopt.append("-x265-params '"+x265params.replace("  "," ")+"'")
+                    self.streamopt.append("-x265-params "+x265params.replace("  "," "))
                     
                     if options['config'].getboolean("VideoSettings","crop") and not options['nocrop']:
                         crop=self.analyze_crop(tools)
