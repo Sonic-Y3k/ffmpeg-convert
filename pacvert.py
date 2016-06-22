@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.98;
-DATE = "05.06.2016";
+VERSION = 4.981;
+DATE = "22.06.2016";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -971,9 +971,13 @@ class PacvertMedia:
                         self.streamopt.append("-tune "+options['config'].get("VideoSettings","x265tune"))
                     
                     x265params = options['config'].get("VideoSettings","x265params")
-                    x265params += " crf="+options['config'].get("VideoSettings","x265crf")
+                    x265params += ":crf="+options['config'].get("VideoSettings","x265crf")
                     
-                    self.streamopt.append("-x265-params"+x265params.replace("  "," "))
+                    if not options['disable_maxrate']:
+                        x265params += ":vbv-maxrate="+str(round(bitrate/1000))+"k"
+                        x265params += ":vbv-bufsize="+str(round((bitrate*4.5)/1000))+"k"
+                    
+                    self.streamopt.append("-x265-params '"+x265params.replace("  "," ")+"'")
                     
                     if options['config'].getboolean("VideoSettings","crop") and not options['nocrop']:
                         crop=self.analyze_crop(tools)
