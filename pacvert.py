@@ -975,7 +975,7 @@ class PacvertMedia:
                     
                     if not options['disable_maxrate']:
                         x265params += ":vbv-maxrate="+str(round(bitrate/1000))
-                        x265params += ":vbv-bufsize="+str(round((bitrate*4.5)/1000))
+                        x265params += ":vbv-bufsize=0" #":vbv-bufsize="+str(round((bitrate*4.5)/1000))
                     
                     self.streamopt.append("-x265-params "+x265params.replace("  "," "))
                     
