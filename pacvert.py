@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.981;
-DATE = "22.06.2016";
+VERSION = 4.982;
+DATE = "25.07.2016";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -1216,7 +1216,7 @@ class PacvertMedia:
                     self.streamopt.append("-c:s:"+str(subCount)+" copy")
                     self.streamopt.append("-metadata:s:s:"+str(subCount)+" language="+c.language)
                     subCount+=1
-                elif (self.pacvertFileExtensions == "mkv" and c.codec in ["pgssub","dvdsub"]):
+                elif (self.pacvertFileExtensions == "mkv" and c.codec in ["pgssub","dvdsub","hdmv_pgs_subtitle"]):
                     #Convert to SRT
                     newSub=self.convert_subtitle(c.index,c.language,c.codec,tools,options)
                     if newSub != "":
@@ -1227,7 +1227,7 @@ class PacvertMedia:
                         subCount+=1
                     else:
                         self.message(B+"    + "+W+" Skipping subtitle.",2)
-                elif (self.pacvertFileExtensions == "m4v" and c.codec in ["pgssub","dvdsub"]):
+                elif (self.pacvertFileExtensions == "m4v" and c.codec in ["pgssub","dvdsub","hdmv_pgs_subtitle"]):
                     #Convert to mov_text
                     newSub=self.convert_subtitle(c.index,c.language,c.codec,tools,options)
                     if newSub != "":
