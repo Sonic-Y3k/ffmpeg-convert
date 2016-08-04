@@ -972,8 +972,7 @@ class PacvertMedia:
                     
                     self.streamopt.append("-crf "+options['config'].get("VideoSettings","x265crf"))
                     
-                    if options['config'].get("VideoSettings","x265params") != "":
-                        x265params = options['config'].get("VideoSettings","x265params")
+                    x265params = options['config'].get("VideoSettings","x265params")
                     
                     if not options['disable_maxrate']:
                         if x265params != "":
