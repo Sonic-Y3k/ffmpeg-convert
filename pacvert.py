@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.983;
-DATE = "03.08.2016";
+VERSION = 4.984;
+DATE = "04.08.2016";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -970,11 +970,16 @@ class PacvertMedia:
                     if options['config'].get("VideoSettings","x265tune") != "":
                         self.streamopt.append("-tune "+options['config'].get("VideoSettings","x265tune"))
                     
-                    x265params = options['config'].get("VideoSettings","x265params")
-                    x265params += ":crf="+options['config'].get("VideoSettings","x265crf")
+                    self.streamopt.append("-crf "+options['config'].get("VideoSettings","x265crf"))
+                    
+                    if options['config'].get("VideoSettings","x265params") != "":
+                        x265params = options['config'].get("VideoSettings","x265params")
                     
                     if not options['disable_maxrate']:
-                        x265params += ":vbv-maxrate="+str(round(bitrate/1000))
+                        if x265params != "":
+                            x265params += ":vbv-maxrate="+str(round(bitrate/1000))
+                        else:
+                            x265params = "vbv-maxrate="+str(round(bitrate/1000))
                         x265params += ":vbv-bufsize=0" #":vbv-bufsize="+str(round((bitrate*4.5)/1000))
                     
                     self.streamopt.append("-x265-params "+x265params.replace("  "," "))
