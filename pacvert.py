@@ -17,7 +17,7 @@
 ################################
 
 # Version
-VERSION = 4.985;
+VERSION = 4.986;
 DATE = "05.08.2016";
 
 # Console colors
@@ -979,7 +979,7 @@ class PacvertMedia:
                             x265params += ":vbv-maxrate="+str(round(bitrate/1000))
                         else:
                             x265params = "vbv-maxrate="+str(round(bitrate/1000))
-                        x265params += ":vbv-bufsize=0" #":vbv-bufsize="+str(round((bitrate*4.5)/1000))
+                        x265params += ":vbv-bufsize="+str(round((bitrate*2)/1000))
                     
                     self.streamopt.append("-x265-params "+x265params.replace("  "," "))
                     
