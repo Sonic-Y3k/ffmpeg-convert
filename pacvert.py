@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.984;
-DATE = "04.08.2016";
+VERSION = 4.985;
+DATE = "05.08.2016";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -1457,7 +1457,7 @@ class PacvertMedia:
         tempFileName = tempFileName.replace("\"","_")
         tempFileName = tempFileName.replace("\'","_")
         
-        if codec != "dvdsub":
+        if codec != "dvdsub" or codec != "dvd_subtitle":
             cmd_mkvextract=[tools['mkvextract'],"tracks",self.pacvertFile,str(index)+":"+tempFileName+".sup"]
         else:
             cmd_mkvextract=[tools['mkvextract'],"tracks",self.pacvertFile,str(index)+":"+tempFileName+".sub"]
@@ -1494,7 +1494,7 @@ class PacvertMedia:
             pbar.finish()
 
             #Second Block, extract frames from subtitle
-            if codec != "dvdsub":
+            if codec != "dvdsub" or codec != "dvd_subtitle":
                 widgets = [G+' [',AnimatedMarker(),']','     '+B+'+'+W+' Extracting frames:\t',Percentage(),' (',ETA(),')']
                 pbar = ProgressBar(widgets=widgets, maxval=100.0)
                 pbar.start()
