@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.987;
-DATE = "05.08.2016";
+VERSION = 4.988;
+DATE = "07.08.2016";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -209,8 +209,20 @@ class Pacvert():
             try:
                 conv = element.convert(self.tools,self.options,30)
                 frames = element.frames
-                
-                widgets = [G+' [',AnimatedMarker(),'] ',B+'    + '+W,Percentage(),' ',Bar(marker='#',left='[',right=']'),' ',FormatLabel('0 FPS'),' ', ETA()]
+                leadin_zero = str("0").rjust(len(str(frames)),'0')
+                widgets = [G+' [']
+                widgets.append(AnimatedMarker())
+                widgets.append('] ')
+                widgets.append(B+'    + '+W)
+                widgets.append(Percentage())
+                widgets.append(' (')
+                widgets.append(FormatLabel(leadin_zero))
+                widgets.append('/'+str(element.frames)+') ')
+                widgets.append(Bar(marker='#',left='[',right=']'))
+                widgets.append(' ')
+                widgets.append(FormatLabel('0 FPS'))
+                widgets.append(' ')
+                widgets.append(ETA())
             
                 pbar = ProgressBar(widgets=widgets,maxval=element.frames)
                 pbar.start()
@@ -221,13 +233,14 @@ class Pacvert():
                         temp = int(val[0])
                     except TypeError:
                         temp = pval
-                
-                    widgets[8] = FormatLabel(str(val[1])+" FPS")
+                    
+                    widgets[10] = FormatLabel(str(val[1])+" FPS")
                     if temp <= element.frames:
                         pbar.update(temp)
-                        pval = temp
+                        pval = temp    
                     else:
                         pbar.update(pval)
+                    widgets[6] = FormatLabel(str(pval).rjust(len(str(frames)),'0'))
                 pbar.finish()
                 currentc += 1
             except PacvertError:
