@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.988;
-DATE = "07.08.2016";
+VERSION = 4.989;
+DATE = "11.08.2016";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
@@ -198,7 +198,7 @@ class Pacvert():
             element.analyze_audio(self.tools,self.options)
             element.analyze_subtitles(self.tools,self.options)
 
-            #Default conversion
+            #Default conversion stage 1
             current_zero = str(currentc).zfill(len(str(len(TOCONVERT))))
             #calc_len = 1/3 of a window
             calc_len = int(int(os.popen('stty size', 'r').read().split()[1])*0.66) 
@@ -207,7 +207,7 @@ class Pacvert():
             else:
                 self.message(O+"  * "+W+element.pacvertName+" ("+current_zero+"/"+str(len(TOCONVERT))+"):")
             try:
-                conv = element.convert(self.tools,self.options,30)
+                conv = element.convert_stage1(self.tools,self.options,30)
                 frames = element.frames
                 leadin_zero = str("0").rjust(len(str(frames)),'0')
                 widgets = [G+' [']
@@ -241,6 +241,47 @@ class Pacvert():
                     else:
                         pbar.update(pval)
                     widgets[6] = FormatLabel(str(pval).rjust(len(str(frames)),'0'))
+                pbar.finish()
+            except PacvertError:
+                try:
+                    exit(1)
+                except:
+                    """"""
+
+            #Default conversion stage2
+            current_zero = str(currentc).zfill(len(str(len(TOCONVERT))))
+            #calc_len = 1/3 of a window
+            calc_len = int(int(os.popen('stty size', 'r').read().split()[1])*0.66) 
+            try:
+                conv = element.convert_stage2(self.tools,self.options,6000)
+                frames = element.frames
+                leadin_zero = str("0").rjust(len(str(frames)),'0')
+                widgets = [G+' [']
+                widgets.append(AnimatedMarker())
+                widgets.append('] ')
+                widgets.append(B+'    + '+W)
+                widgets.append(Percentage())
+                widgets.append(' ')
+                widgets.append(Timer())
+                widgets.append(' ')
+                widgets.append(Bar(marker='#',left='[',right=']'))
+                widgets.append(' ')
+                widgets.append(AdaptiveETA())
+            
+                pbar = ProgressBar(widgets=widgets,maxval=100)
+                pbar.start()
+                pval = 0
+            
+                for val in conv:
+                    try:
+                        temp = int(val)
+                    except TypeError:
+                        temp = pval
+                    
+                    if temp > pval:
+                        pval = temp
+                        pbar.update(temp)
+                
                 pbar.finish()
                 currentc += 1
             except PacvertError:
@@ -998,7 +1039,8 @@ class PacvertMedia:
                     
                     if options['config'].getboolean("VideoSettings","crop") and not options['nocrop']:
                         crop=self.analyze_crop(tools)
-                        self.streamopt.append("-filter:v crop="+crop)
+                        if (crop != "0:0:0:0"):
+                            self.streamopt.append("-filter:v crop="+crop)
                         
                     self.streamopt.append("-metadata:s:v:0 language="+c.language)
                 elif options['vp9']:
@@ -1011,7 +1053,8 @@ class PacvertMedia:
 
                     if options['config'].getboolean("VideoSettings","crop") and not options['nocrop']:
                         crop=self.analyze_crop(tools)
-                        self.streamopt.append("-filter:v crop="+crop)
+                        if (crop != "0:0:0:0"):
+                            self.streamopt.append("-filter:v crop="+crop)
                 else:
                     if crf < options['config'].getfloat("VideoSettings","CRF"):
                         self.streamopt.append("-c:v:0 libx264")
@@ -1027,7 +1070,8 @@ class PacvertMedia:
                         
                         if options['config'].getboolean("VideoSettings","crop") and not options['nocrop']:
                             crop=self.analyze_crop(tools)
-                            self.streamopt.append("-filter:v crop="+crop)
+                            if (crop != "0:0:0:0"):
+                                self.streamopt.append("-filter:v crop="+crop)
                     else:
                         self.streamopt.append("-c:v:0 copy")
                         self.streamopt.append("-metadata:s:v:0 language="+c.language)
@@ -1586,17 +1630,18 @@ class PacvertMedia:
         
         return cmd
 
-    def convert(self,tools,options,timeout=10):
+
+    def convert_stage1(self,tools,options,timeout=10):
         if not os.path.exists(self.pacvertFile):
             raise Exception("Input file doesn't exists: "+self.pacvertFile)
 
         #Output Directory
         if options['nooutdir']:
             outdir = self.pacvertPath
-            outfile = outdir+"/"+os.path.splitext(self.pacvertName)[0]+"-new."+self.pacvertFileExtensions
+            outfile = outdir+"/temp_"+os.path.splitext(self.pacvertName)[0]+"-new."+self.pacvertFileExtensions
         else:
             outdir = options['outdir']
-            outfile = outdir+"/"+os.path.splitext(self.pacvertName)[0]+"."+self.pacvertFileExtensions
+            outfile = outdir+"/temp_"+os.path.splitext(self.pacvertName)[0]+"."+self.pacvertFileExtensions
 
         if not os.path.exists(outdir):
             os.makedirs(outdir)
@@ -1607,6 +1652,14 @@ class PacvertMedia:
             cmds.extend(['-t', '00:05:00'])
 
         cmds.append(outfile)
+
+        vi = cmds.index("-c:v:0")
+        #-c:v:0 libx265 -preset slow -pix_fmt yuv420p10 -crf 18.0 -x265-params vbv-maxrate=20954:vbv-bufsize=41908 -filter:v crop=1920:800:0:140
+        cmds[vi+1] = "copy"
+        
+        #remove stuff
+        for y in range((vi+2), (vi+12), 1):
+            cmds.pop(vi+2)
 
         if timeout:
             def on_sigalrm(*_):
@@ -1622,7 +1675,7 @@ class PacvertMedia:
         yielded = False
         buf = ""
         total_output = ""
-        pat = re.compile(r'frame=\s*(-?[0-9]+)\s*fps=\s*(-?[0-9]+)')
+        pat = re.compile(r'frame=\s*(-?[0-9]+)\s*fps=\s*([0-9]*\.[0-9]+|[0-9]+)')
         while True:
             if timeout:
                 signal.alarm(timeout)
@@ -1668,6 +1721,110 @@ class PacvertMedia:
                 raise PacvertError('Unknown ffmpeg error', cmd,total_output, line, pid=p.pid)
         if p.returncode != 0:
             raise PacvertError('Exited with code %d' % p.returncode,cmd,total_output, pid=p.pid)
+
+    def convert_stage2(self,tools,options,timeout=10):
+        if not os.path.exists(self.pacvertFile):
+            raise Exception("Input file doesn't exists: "+self.pacvertFile)
+
+        #Output Directory
+        if options['nooutdir']:
+            outdir = self.pacvertPath
+            outfile = outdir+"/"+os.path.splitext(self.pacvertName)[0]+"-new."+self.pacvertFileExtensions
+            temp_o  = outdir+"/temp_"+os.path.splitext(self.pacvertName)[0]+"-new."+self.pacvertFileExtensions
+        else:
+            outdir = options['outdir']
+            outfile = outdir+"/"+os.path.splitext(self.pacvertName)[0]+"."+self.pacvertFileExtensions
+            temp_o  = outdir+"/temp_"+os.path.splitext(self.pacvertName)[0]+"."+self.pacvertFileExtensions
+
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
+
+        cmds = self.getFlags(tools)
+        cmds.extend(['-y', '-threads',str(options['threads'])])
+        if options['snap']:
+            cmds.extend(['-t', '00:05:00'])
+
+        cmds.append(temp_o)
+        
+        vi = cmds.index("-c:v:0")
+        #-c:v:0 libx265 -preset slow -pix_fmt yuv420p10 -crf 18.0 -x265-params vbv-maxrate=20954:vbv-bufsize=41908 -filter:v crop=1920:800:0:140
+        new_opts = cmds[vi:(vi+12)]
+
+        new_opts.insert(0,"-map")
+        new_opts.insert(1,"0:v")
+        new_opts.insert(2,"-map")
+        new_opts.insert(3,"0:a")
+        new_opts.append("-c:a")
+        new_opts.append("copy")
+        
+        cmds = ["/mnt/Wastelands/Downloads/dve", "-o", " ".join(new_opts), "-t", "60", "-l", "10.10.0.50,10.10.0.51,10.10.0.57,10.10.0.100", "-s", outfile, cmds[2]]
+        
+        if timeout:
+            def on_sigalrm(*_):
+                signal.signal(signal.SIGALRM,signal.SIG_DFL)
+                raise PacvertError("Timed out while waiting for ffmpeg","","")
+            signal.signal(signal.SIGALRM,on_sigalrm)
+
+        try:
+            p = Popen(cmds,shell=False,stdin=PIPE,stdout=PIPE,stderr=PIPE,close_fds=True,universal_newlines=True)
+        except OSError:
+            raise PacvertError("Error while calling ffmpeg binary","","")
+        
+        zeug = 0
+        
+        yielded = False
+        buf = ""
+        total_output = ""
+        pat = re.compile(r'Left:\s*(-?[0-9]+)')
+        while True:
+            if timeout:
+                signal.alarm(timeout)
+
+            ret = p.stderr.read(10)
+
+            if timeout:
+                signal.alarm(0)
+
+            if not ret:
+                break
+            
+            total_output += ret
+            buf += ret
+            
+            if "\n" in buf:
+                line,buf = buf.split("\n", 1)
+
+                tmp = pat.findall(line)
+
+                if len(tmp) == 1:
+                    if (zeug == 0) and (tmp[0] != 0):
+                        zeug = int(tmp[0])
+                    yielded = True
+                    yield str(round(((zeug-int(tmp[0]))*100)/zeug))
+            
+        if timeout:
+            signal.signal(signal.SIGALRM,signal.SIG_DFL)
+
+        p.communicate()
+
+        if total_output == "":
+            raise Exception("Error while calling ffmpeg binary")
+
+        cmd = " ".join(cmds)
+        if "\n" in total_output:
+            line = total_output.split("\n")[-2]
+
+            if line.startswith("Received signal"):
+                raise PacvertError(line.split(':')[0], cmd, total_output,pid=p.pid)
+            if line.startswith(self.pacvertPath + ': '):
+                err = line[len(self.pacvertPath) + 2:]
+                raise PacvertError('Encoding error',cmd,total_output,err,pid=p.pid)
+            if line.startswith('Error while '):
+                raise PacvertError('Encoding error',cmd,total_output,line,pid=p.pid)
+            if not yielded:
+                raise PacvertError('Unknown ffmpeg error', cmd,total_output, line, pid=p.pid)
+        if p.returncode != 0:
+            raise PacvertError('Exited with code %d' % p.returncode,cmd,total_output, pid=p.pid)
             
     def check_sanity(self,tools,options):
         """
@@ -1680,9 +1837,14 @@ class PacvertMedia:
         if options['nooutdir']:
             outdir = self.pacvertPath
             output = outdir+"/"+os.path.splitext(self.pacvertName)[0]+"-new."+self.pacvertFileExtensions
+            temp_o = outdir+"/temp_"+os.path.splitext(self.pacvertName)[0]+"-new."+self.pacvertFileExtensions
         else:
             outdir = options['outdir']
             output = outdir+"/"+os.path.splitext(self.pacvertName)[0]+"."+self.pacvertFileExtensions
+            temp_o = outdir+"/temp_"+os.path.splitext(self.pacvertName)[0]+"."+self.pacvertFileExtensions
+        
+        if os.path.isfile(temp_o):
+            os.remove(temp_o)
         
         if not os.path.isfile(output):
             self.message(B+"    + "+W+"Sanity Check:\t"+R+"Failed"+W+". (output doesn't exist)"+W,2)
