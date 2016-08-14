@@ -1171,7 +1171,7 @@ class PacvertMedia:
                         self.streamopt.append("-c:a:"+str(audCount)+" "+options['config'].get("AudioSettings","dtslib"))
                         self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
                         audCount+=1
-                    elif (defaultAudioCodec == "ac3" and c.codec == "ac3") or (defaultAudioCodec == "dts" and (c.codec == "dca" or c.codec="dts")):
+                    elif (defaultAudioCodec == "ac3" and c.codec == "ac3") or (defaultAudioCodec == "dts" and (c.codec == "dca" or c.codec == "dts")):
                         self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
                         self.streammap.append("-map 0:"+str(c.index))
                         self.message(B+"    + "+W+"-map 0:"+str(c.index))
