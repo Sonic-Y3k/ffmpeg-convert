@@ -17,8 +17,8 @@
 ################################
 
 # Version
-VERSION = 4.989;
-DATE = "11.08.2016";
+VERSION = 4.990;
+DATE = "14.08.2016";
 
 # Console colors
 W  = '\033[0m'  # white (normal)
