@@ -1129,14 +1129,14 @@ class PacvertMedia:
                     for d in self.streams:
                         if d.type == "audio" and ((c.codec == "ac3" and d.codec == "aac") or (c.codec == "aac" and d.codec == "ac3")) and c.language == d.language:
                             doubleLang = True
-                    if (c.codec == "dca" or c.codec == "truehd" or c.codec == "ac3" or c.codec == "eac3"):
+                    if (c.codec == "dca" or c.codec == "truehd" or c.codec == "ac3" or c.codec == "eac3" or c.codec == "dts"):
                         self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
                         self.streammap.append("-map 0:"+str(c.index))
                         self.message(B+"    + "+W+"-map 0:"+str(c.index))
                         self.streamopt.append("-c:a:"+str(audCount)+" copy")
                         self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
                         audCount+=1
-                    elif (c.codec != "dca" and c.codec != "truehd" and c.codec != "ac3" and c.codec != "eac3") and doubleLang == False:
+                    elif (c.codec != "dca" and c.codec != "truehd" and c.codec != "ac3" and c.codec != "eac3" and c.codec != "dts") and doubleLang == False:
                         self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
                         self.streammap.append("-map 0:"+str(c.index))
                         self.message(B+"    + "+W+"-map 0:"+str(c.index))
@@ -1164,14 +1164,14 @@ class PacvertMedia:
                         self.streamopt.append("-ac:"+str(audCount)+" "+str(min(max(2,c.audio_channels),6)))
                         self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
                         audCount+=1
-                    elif defaultAudioCodec == "dts" and c.codec != "dca" and doubleLang == False:
+                    elif defaultAudioCodec == "dts" and (c.codec != "dca" and c.codec != "dts") and doubleLang == False:
                         self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
                         self.streammap.append("-map 0:"+str(c.index))
                         self.message(B+"    + "+W+"-map 0:"+str(c.index))
                         self.streamopt.append("-c:a:"+str(audCount)+" "+options['config'].get("AudioSettings","dtslib"))
                         self.streamopt.append("-metadata:s:a:"+str(audCount)+" language="+c.language)
                         audCount+=1
-                    elif (defaultAudioCodec == "ac3" and c.codec == "ac3") or (defaultAudioCodec == "dts" and c.codec == "dca"):
+                    elif (defaultAudioCodec == "ac3" and c.codec == "ac3") or (defaultAudioCodec == "dts" and (c.codec == "dca" or c.codec="dts")):
                         self.message(O+"  * "+W+"Audio track #"+str(audCount+1)+":")
                         self.streammap.append("-map 0:"+str(c.index))
                         self.message(B+"    + "+W+"-map 0:"+str(c.index))
