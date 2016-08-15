@@ -1757,7 +1757,7 @@ class PacvertMedia:
         new_opts.append("-c:a")
         new_opts.append("copy")
         
-        cmds = ["/mnt/Wastelands/Downloads/dve", "-o", " ".join(new_opts), "-t", "60", "-l", "10.10.0.50,10.10.0.51,10.10.0.57,10.10.0.100", "-s", outfile, cmds[2]]
+        cmds = ["/mnt/Wastelands/Downloads/dve", "-o", " ".join(new_opts), "-t", "60", "-l", "10.10.0.50,10.10.0.57,10.10.0.100", "-s", outfile, temp_o]
         
         if timeout:
             def on_sigalrm(*_):
